@@ -2,6 +2,7 @@
   "expo": {
     "name": "Lifepath",
     "slug": "lifepath",
+    "owner": "khurshid-dev",
     "version": "0.2.0",
     "orientation": "portrait",
     "scheme": "lifepath",
