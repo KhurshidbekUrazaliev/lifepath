@@ -3,17 +3,49 @@
 // That keeps the device in sync without tracking individual notification ids.
 import { useEffect } from 'react';
 import { AppState, Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
+import type * as NotificationsModule from 'expo-notifications';
 import { router } from 'expo-router';
 import { useStore } from './store';
 import { buildSchedule, ScheduledItem } from './lib/schedule';
 
 const CHANNEL_ID = 'reminders';
-const supported = Platform.OS !== 'web';
+
+/**
+ * Expo Go on Android throws as soon as expo-notifications is loaded (since SDK 53),
+ * so the module is only required where it works: iOS Expo Go and real/development builds.
+ */
+const isAndroidExpoGo =
+  Platform.OS === 'android' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+export const notificationsAvailable = Platform.OS !== 'web' && !isAndroidExpoGo;
+
+/** Why reminders can't fire here, for showing in the UI. Empty when they can. */
+export const notificationsUnavailableReason =
+  Platform.OS === 'web'
+    ? "Reminders fire in the phone app. The web version can't send notifications yet."
+    : isAndroidExpoGo
+      ? 'Expo Go on Android does not support notifications. Your reminders are saved and will fire in the installed app build.'
+      : '';
+
+let mod: typeof NotificationsModule | null | undefined;
+function getNotifications(): typeof NotificationsModule | null {
+  if (mod !== undefined) return mod;
+  if (!notificationsAvailable) return (mod = null);
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    mod = require('expo-notifications') as typeof NotificationsModule;
+  } catch (e) {
+    console.warn('Notifications unavailable', e);
+    mod = null;
+  }
+  return mod;
+}
 
 let configured = false;
 function configure() {
-  if (configured || !supported) return;
+  const Notifications = getNotifications();
+  if (configured || !Notifications) return;
   configured = true;
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -32,7 +64,8 @@ function configure() {
 }
 
 export async function hasPermission(): Promise<boolean> {
-  if (!supported) return false;
+  const Notifications = getNotifications();
+  if (!Notifications) return false;
   try {
     const { granted } = await Notifications.getPermissionsAsync();
     return granted;
@@ -43,7 +76,8 @@ export async function hasPermission(): Promise<boolean> {
 
 /** Asks for permission if it hasn't been decided yet. Returns whether we may notify. */
 export async function ensurePermission(): Promise<boolean> {
-  if (!supported) return false;
+  const Notifications = getNotifications();
+  if (!Notifications) return false;
   configure();
   try {
     const current = await Notifications.getPermissionsAsync();
@@ -56,7 +90,7 @@ export async function ensurePermission(): Promise<boolean> {
   }
 }
 
-function toTrigger(item: ScheduledItem): Notifications.NotificationTriggerInput {
+function toTrigger(Notifications: typeof NotificationsModule, item: ScheduledItem): NotificationsModule.NotificationTriggerInput {
   const channelId = Platform.OS === 'android' ? CHANNEL_ID : undefined;
   if (item.trigger.kind === 'weekly') {
     return {
@@ -75,7 +109,8 @@ let pending = false;
 
 /** Rebuilds all scheduled notifications from current app state. Safe to call often. */
 export async function syncNotifications(): Promise<number> {
-  if (!supported) return 0;
+  const Notifications = getNotifications();
+  if (!Notifications) return 0;
   if (syncing) {
     pending = true; // run once more after the current sync finishes
     await syncing;
@@ -93,7 +128,7 @@ export async function syncNotifications(): Promise<number> {
         await Notifications.scheduleNotificationAsync({
           identifier: item.id,
           content: { title: item.title, body: item.body, data: item.data, sound: 'default' },
-          trigger: toTrigger(item),
+          trigger: toTrigger(Notifications, item),
         });
       }
       count = items.length;
@@ -111,7 +146,8 @@ export async function syncNotifications(): Promise<number> {
 }
 
 export async function sendTestNotification(): Promise<boolean> {
-  if (!(await ensurePermission())) return false;
+  const Notifications = getNotifications();
+  if (!Notifications || !(await ensurePermission())) return false;
   await Notifications.scheduleNotificationAsync({
     content: { title: '🌱 Lifepath', body: 'Reminders are working. See you at your next session!' },
     trigger: {
@@ -123,7 +159,7 @@ export async function sendTestNotification(): Promise<boolean> {
   return true;
 }
 
-function openFromNotification(response: Notifications.NotificationResponse | null) {
+function openFromNotification(response: NotificationsModule.NotificationResponse | null) {
   const data = response?.notification.request.content.data as { taskId?: string } | undefined;
   if (data?.taskId && useStore.getState().tasks.some((t) => t.id === data.taskId)) {
     router.push({ pathname: '/task/[id]', params: { id: data.taskId } });
@@ -136,7 +172,8 @@ function openFromNotification(response: Notifications.NotificationResponse | nul
  */
 export function useNotificationSync() {
   useEffect(() => {
-    if (!supported) return;
+    const Notifications = getNotifications();
+    if (!Notifications) return;
     configure();
     syncNotifications();
 

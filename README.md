@@ -47,7 +47,7 @@ Scan the QR code with your phone's camera (iPhone) or the Expo Go app (Android).
 
 **Already ran v0.1?** Pull the update, then run `npm install` and `npx expo start --clear`. Your existing data is kept and upgraded automatically.
 
-**Reminders in Expo Go:** local reminders work in Expo Go. Use **You → Send a test notification** to check. If your phone never shows it, allow notifications for Expo Go in your phone's settings.
+**Reminders in Expo Go:** on iPhone, reminders work in Expo Go (use **You → Send a test notification**). On Android, Expo Go doesn't support notifications at all, so the app skips them there and tells you; your reminders and plans are still saved. To get real reminders on Android you need a development build of the app.
 
 **If `npm install` fails with a peer-dependency error**, run `npm install --legacy-peer-deps` and continue from `npm run setup`.
 
