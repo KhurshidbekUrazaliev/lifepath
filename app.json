@@ -7,9 +7,12 @@
     "scheme": "lifepath",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.urazaliev.lifepath"
     },
-    "android": {},
+    "android": {
+      "package": "com.urazaliev.lifepath"
+    },
     "web": {
       "bundler": "metro",
       "output": "single"

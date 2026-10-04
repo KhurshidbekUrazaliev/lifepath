@@ -53,6 +53,28 @@ Scan the QR code with your phone's camera (iPhone) or the Expo Go app (Android).
 
 **If Expo Go says the project's SDK is not supported**, update Expo Go from the app store, then run `npx expo install --fix` again.
 
+## Development build (real reminders on Android)
+
+Expo Go can't show notifications on Android. A development build is your own installable Lifepath app that works like Expo Go but supports everything. You only rebuild it when a native package is added; normal code changes still load instantly.
+
+One-time setup (free Expo account at https://expo.dev):
+
+```bash
+npm install -g eas-cli
+npx expo install expo-dev-client
+eas login
+eas init
+eas build --profile development --platform android
+```
+
+When the build finishes (about 10–20 minutes on the free plan), open the link it prints on your phone, download the APK and install it (allow "install unknown apps" if Android asks). Then:
+
+```bash
+npx expo start --dev-client
+```
+
+Open the **Lifepath** app on your phone and scan the QR code. Commit the changes `eas init` and `expo install` make to `app.json` and `package.json`.
+
 ## Test the core logic
 
 ```bash
