@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Platform, StyleSheet, Switch, Text, View } from 'react-native';
+import { StyleSheet, Switch, Text, View } from 'react-native';
 import { useStore, useVisibleStreak } from '../../src/store';
 import { ACHIEVEMENTS, levelInfo } from '../../src/lib/gamify';
 import { radius, space, tint, type, useTheme } from '../../src/theme';
@@ -8,7 +8,7 @@ import { ProgressBar } from '../../src/components/Progress';
 import { BounceButton } from '../../src/components/BounceButton';
 import { confirmAction, haptic } from '../../src/components/feedback';
 import { TimePicker } from '../../src/components/TimePicker';
-import { ensurePermission, sendTestNotification } from '../../src/notifications';
+import { ensurePermission, notificationsAvailable, notificationsUnavailableReason, sendTestNotification } from '../../src/notifications';
 import { timeLabel } from '../../src/lib/calendar';
 
 export default function MeScreen() {
@@ -24,10 +24,9 @@ export default function MeScreen() {
   const setNudge = useStore((s) => s.setNudge);
   const [notifyMsg, setNotifyMsg] = useState('');
   const [editNudge, setEditNudge] = useState(false);
-  const native = Platform.OS !== 'web';
 
   const toggleNudge = async (on: boolean) => {
-    if (on) {
+    if (on && notificationsAvailable) {
       const ok = await ensurePermission();
       setNotifyMsg(ok ? '' : "Notifications are off for Lifepath. Turn them on in your phone's Settings.");
       haptic('success');
@@ -140,7 +139,7 @@ export default function MeScreen() {
             )
           ) : null}
         </View>
-        {native ? (
+        {notificationsAvailable ? (
           <BounceButton
             label="Send a test notification"
             icon="🔔"
@@ -152,7 +151,7 @@ export default function MeScreen() {
             }}
           />
         ) : (
-          <Muted>Reminders work in the phone app. The web version can't send notifications yet.</Muted>
+          <Muted>{notificationsUnavailableReason}</Muted>
         )}
         {notifyMsg ? <Muted>{notifyMsg}</Muted> : null}
         <View style={styles.between}>

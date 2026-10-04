@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Platform, StyleSheet, Switch, Text, View } from 'react-native';
+import { StyleSheet, Switch, Text, View } from 'react-native';
 import { useStore } from '../store';
 import { Task } from '../lib/types';
 import { daysLabel, timeLabel } from '../lib/calendar';
-import { ensurePermission } from '../notifications';
+import { ensurePermission, notificationsAvailable, notificationsUnavailableReason } from '../notifications';
 import { space, type, useTheme } from '../theme';
 import { DayPicker, TimePicker } from './TimePicker';
 import { Card, Muted } from './ui';
@@ -24,8 +24,7 @@ export function ReminderCard({ task, color }: { task: Task; color: string }) {
       setEditing(false);
       return;
     }
-    const ok = await ensurePermission();
-    setDenied(!ok);
+    if (notificationsAvailable) setDenied(!(await ensurePermission()));
     setReminder(task.id, r ?? DEFAULT);
     setEditing(true);
     haptic('success');
@@ -61,7 +60,7 @@ export function ReminderCard({ task, color }: { task: Task; color: string }) {
         </View>
       ) : null}
 
-      {Platform.OS === 'web' && r ? <Muted>Reminders fire on the phone app, not in the browser.</Muted> : null}
+      {r && !notificationsAvailable ? <Muted>{notificationsUnavailableReason}</Muted> : null}
       {denied ? (
         <Muted style={{ color: t.danger }}>Notifications are off for Lifepath. Turn them on in your phone's Settings to get this reminder.</Muted>
       ) : null}
