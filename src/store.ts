@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Entry, Folder, Milestone, Profile, ProgressType, Resource, Task } from './lib/types';
+import { Entry, Folder, Milestone, NudgeSettings, Plan, Profile, ProgressType, Reminder, Resource, Task } from './lib/types';
 import { dayKey, addDays } from './lib/dates';
 import { computeProgress, loggedToday } from './lib/progress';
 import {
@@ -39,6 +39,13 @@ export interface NewFolderInput {
   unit: string;
 }
 
+export interface NewPlanInput {
+  taskId: string;
+  day: string;
+  time?: string;
+  note?: string;
+}
+
 export interface NewTaskInput {
   folderId: string;
   title: string;
@@ -54,6 +61,7 @@ interface State {
   folders: Folder[];
   tasks: Task[];
   entries: Entry[];
+  plans: Plan[];
   profile: Profile;
   celebrations: Celebration[]; // transient queue, not persisted
 
@@ -75,6 +83,12 @@ interface State {
   addResource: (taskId: string, title: string, url?: string) => void;
   removeResource: (taskId: string, resourceId: string) => void;
 
+  setReminder: (taskId: string, reminder: Reminder | undefined) => void;
+  addPlan: (input: NewPlanInput) => string;
+  deletePlan: (id: string) => void;
+  togglePlanDone: (id: string) => void;
+  setNudge: (patch: Partial<NudgeSettings>) => void;
+
   setName: (name: string) => void;
   setDailyGoal: (xp: number) => void;
   toggleHaptics: () => void;
@@ -92,7 +106,13 @@ const initialProfile: Profile = {
   dailyGoalXp: 30,
   haptics: true,
   achievements: {},
+  nudge: { enabled: false, hour: 21, minute: 0 },
 };
+
+/** Marks today's open plans for a task as done (logging counts as doing the plan). */
+function completeTodaysPlans(plans: Plan[], taskId: string, today: string): Plan[] {
+  return plans.map((p) => (p.taskId === taskId && p.day === today && !p.doneAt ? { ...p, doneAt: Date.now() } : p));
+}
 
 /**
  * Applies earned XP to the profile, detects level-ups and new achievements,
@@ -140,6 +160,7 @@ export const useStore = create<State>()(
       folders: [],
       tasks: [],
       entries: [],
+      plans: [],
       profile: initialProfile,
       celebrations: [],
 
@@ -163,6 +184,7 @@ export const useStore = create<State>()(
             folders: s.folders.filter((f) => f.id !== id),
             tasks: s.tasks.filter((t) => t.folderId !== id),
             entries: s.entries.filter((e) => !taskIds.has(e.taskId)),
+            plans: s.plans.filter((p) => !taskIds.has(p.taskId)),
           };
         }),
 
@@ -187,7 +209,11 @@ export const useStore = create<State>()(
       updateTask: (id, patch) => set((s) => ({ tasks: mapTask(s.tasks, id, (t) => ({ ...t, ...patch })) })),
 
       deleteTask: (id) =>
-        set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id), entries: s.entries.filter((e) => e.taskId !== id) })),
+        set((s) => ({
+          tasks: s.tasks.filter((t) => t.id !== id),
+          entries: s.entries.filter((e) => e.taskId !== id),
+          plans: s.plans.filter((p) => p.taskId !== id),
+        })),
 
       completeTask: (id) =>
         set((s) => {
@@ -246,7 +272,13 @@ export const useStore = create<State>()(
         if (completed) {
           queue.push({ id: uid(), kind: 'complete', title: task.title, subtitle: 'Completed!', icon: '🏁', xp: XP.taskComplete });
         }
-        set({ entries, tasks, profile, celebrations: [...s.celebrations, ...queue, ...celebrations] });
+        set({
+          entries,
+          tasks,
+          profile,
+          plans: completeTodaysPlans(s.plans, taskId, today),
+          celebrations: [...s.celebrations, ...queue, ...celebrations],
+        });
         return { xp, completed, levelUp, streakIncreased: st.increased, questBonus };
       },
 
@@ -297,7 +329,13 @@ export const useStore = create<State>()(
         const { profile, celebrations } = award({ ...s, tasks, entries }, xp, { streak: st.streak, freezes: st.freezes });
         const queue: Celebration[] = [{ id: uid(), kind: 'xp', title: `+${xp} XP`, xp }];
         if (completed) queue.push({ id: uid(), kind: 'complete', title: task.title, subtitle: 'Completed!', icon: '🏁' });
-        set({ tasks, entries, profile, celebrations: [...s.celebrations, ...queue, ...celebrations] });
+        set({
+          tasks,
+          entries,
+          profile,
+          plans: completeTodaysPlans(s.plans, taskId, today),
+          celebrations: [...s.celebrations, ...queue, ...celebrations],
+        });
       },
 
       addMilestone: (taskId, title) =>
@@ -326,6 +364,29 @@ export const useStore = create<State>()(
         set((s) => ({
           tasks: mapTask(s.tasks, taskId, (t) => ({ ...t, resources: t.resources.filter((r) => r.id !== resourceId) })),
         })),
+
+      setReminder: (taskId, reminder) => set((s) => ({ tasks: mapTask(s.tasks, taskId, (t) => ({ ...t, reminder })) })),
+
+      addPlan: (input) => {
+        const id = uid();
+        const plan: Plan = {
+          id,
+          taskId: input.taskId,
+          day: input.day,
+          time: input.time,
+          note: input.note?.trim() || undefined,
+          createdAt: Date.now(),
+        };
+        set((s) => ({ plans: [...s.plans, plan] }));
+        return id;
+      },
+
+      deletePlan: (id) => set((s) => ({ plans: s.plans.filter((p) => p.id !== id) })),
+
+      togglePlanDone: (id) =>
+        set((s) => ({ plans: s.plans.map((p) => (p.id === id ? { ...p, doneAt: p.doneAt ? undefined : Date.now() } : p)) })),
+
+      setNudge: (patch) => set((s) => ({ profile: { ...s.profile, nudge: { ...s.profile.nudge, ...patch } } })),
 
       setName: (name) => set((s) => ({ profile: { ...s.profile, name } })),
       setDailyGoal: (xp) => set((s) => ({ profile: { ...s.profile, dailyGoalXp: xp } })),
@@ -373,16 +434,35 @@ export const useStore = create<State>()(
             ],
           },
         ];
-        set((s) => ({ folders: [...s.folders, reading, gym, lang], tasks: [...s.tasks, ...tasks] }));
+        // A daily reading reminder and two planned gym sessions show off v0.2.
+        tasks[0].reminder = { hour: 21, minute: 30, days: [1, 2, 3, 4, 5, 6, 7] };
+        const plans: Plan[] = [
+          { id: uid(), taskId: tasks[2].id, day: dayKey(addDays(now, 1)), time: '18:00', note: 'Overhead press + lateral raises', createdAt: now },
+          { id: uid(), taskId: tasks[3].id, day: dayKey(addDays(now, 3)), time: '18:00', createdAt: now },
+        ];
+        set((s) => ({
+          folders: [...s.folders, reading, gym, lang],
+          tasks: [...s.tasks, ...tasks],
+          plans: [...s.plans, ...plans],
+        }));
       },
 
-      resetAll: () => set({ folders: [], tasks: [], entries: [], profile: initialProfile, celebrations: [] }),
+      resetAll: () => set({ folders: [], tasks: [], entries: [], plans: [], profile: initialProfile, celebrations: [] }),
     }),
     {
       name: 'lifepath-v1',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ folders: s.folders, tasks: s.tasks, entries: s.entries, profile: s.profile }),
+      partialize: (s) => ({ folders: s.folders, tasks: s.tasks, entries: s.entries, plans: s.plans, profile: s.profile }),
+      // v1 → v2: add planned sessions and the evening nudge setting.
+      migrate: (persisted: any, version) => {
+        const state = persisted ?? {};
+        if (version < 2) {
+          state.plans = state.plans ?? [];
+          state.profile = { ...initialProfile, ...state.profile, nudge: state.profile?.nudge ?? initialProfile.nudge };
+        }
+        return state;
+      },
     },
   ),
 );

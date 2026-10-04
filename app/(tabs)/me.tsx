@@ -1,12 +1,15 @@
-import React from 'react';
-import { StyleSheet, Switch, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Platform, StyleSheet, Switch, Text, View } from 'react-native';
 import { useStore, useVisibleStreak } from '../../src/store';
 import { ACHIEVEMENTS, levelInfo } from '../../src/lib/gamify';
 import { radius, space, tint, type, useTheme } from '../../src/theme';
 import { Card, Chip, Field, Muted, Screen, SectionTitle } from '../../src/components/ui';
 import { ProgressBar } from '../../src/components/Progress';
 import { BounceButton } from '../../src/components/BounceButton';
-import { confirmAction } from '../../src/components/feedback';
+import { confirmAction, haptic } from '../../src/components/feedback';
+import { TimePicker } from '../../src/components/TimePicker';
+import { ensurePermission, sendTestNotification } from '../../src/notifications';
+import { timeLabel } from '../../src/lib/calendar';
 
 export default function MeScreen() {
   const t = useTheme();
@@ -18,6 +21,19 @@ export default function MeScreen() {
   const setDailyGoal = useStore((s) => s.setDailyGoal);
   const toggleHaptics = useStore((s) => s.toggleHaptics);
   const resetAll = useStore((s) => s.resetAll);
+  const setNudge = useStore((s) => s.setNudge);
+  const [notifyMsg, setNotifyMsg] = useState('');
+  const [editNudge, setEditNudge] = useState(false);
+  const native = Platform.OS !== 'web';
+
+  const toggleNudge = async (on: boolean) => {
+    if (on) {
+      const ok = await ensurePermission();
+      setNotifyMsg(ok ? '' : "Notifications are off for Lifepath. Turn them on in your phone's Settings.");
+      haptic('success');
+    }
+    setNudge({ enabled: on });
+  };
   const streak = useVisibleStreak();
   const lvl = levelInfo(profile.xp);
 
@@ -101,6 +117,44 @@ export default function MeScreen() {
             ))}
           </View>
         </View>
+        <View style={{ gap: space.md }}>
+          <View style={styles.between}>
+            <View style={{ flex: 1, paddingRight: space.md }}>
+              <Text style={[type.body, { color: t.text, fontWeight: '700' }]}>Evening streak nudge</Text>
+              <Muted>
+                {profile.nudge.enabled
+                  ? `At ${timeLabel(profile.nudge.hour, profile.nudge.minute)}, only on days you haven't logged`
+                  : "A reminder on days you haven't logged anything"}
+              </Muted>
+            </View>
+            <Switch value={profile.nudge.enabled} onValueChange={toggleNudge} trackColor={{ true: t.accent, false: t.track }} />
+          </View>
+          {profile.nudge.enabled ? (
+            editNudge ? (
+              <>
+                <TimePicker hour={profile.nudge.hour} minute={profile.nudge.minute} onChange={(hour, minute) => setNudge({ hour, minute })} />
+                <Text onPress={() => setEditNudge(false)} style={[type.small, { color: t.accent, fontWeight: '800', textAlign: 'center' }]}>Done</Text>
+              </>
+            ) : (
+              <Text onPress={() => setEditNudge(true)} style={[type.small, { color: t.accent, fontWeight: '800' }]}>Change time</Text>
+            )
+          ) : null}
+        </View>
+        {native ? (
+          <BounceButton
+            label="Send a test notification"
+            icon="🔔"
+            variant="soft"
+            size="sm"
+            onPress={async () => {
+              const ok = await sendTestNotification();
+              setNotifyMsg(ok ? 'Sent! It arrives in about 3 seconds.' : "Notifications are off for Lifepath. Turn them on in your phone's Settings.");
+            }}
+          />
+        ) : (
+          <Muted>Reminders work in the phone app. The web version can't send notifications yet.</Muted>
+        )}
+        {notifyMsg ? <Muted>{notifyMsg}</Muted> : null}
         <View style={styles.between}>
           <Text style={[type.body, { color: t.text, fontWeight: '700' }]}>Haptic feedback</Text>
           <Switch value={profile.haptics} onValueChange={toggleHaptics} trackColor={{ true: t.accent, false: t.track }} />
@@ -114,7 +168,7 @@ export default function MeScreen() {
           }
         />
       </Card>
-      <Muted style={{ textAlign: 'center' }}>Lifepath v0.1 · data stays on this device</Muted>
+      <Muted style={{ textAlign: 'center' }}>Lifepath v0.2 · data stays on this device</Muted>
     </Screen>
   );
 }

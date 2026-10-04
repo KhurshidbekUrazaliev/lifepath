@@ -31,6 +31,13 @@ export interface Resource {
   url?: string;
 }
 
+/** A repeating reminder for a task. */
+export interface Reminder {
+  hour: number; // 0-23
+  minute: number; // 0-59
+  days: number[]; // weekdays, 1 = Sunday ... 7 = Saturday
+}
+
 export interface Task {
   id: string;
   folderId: string;
@@ -41,8 +48,26 @@ export interface Task {
   deadline?: number; // epoch ms
   milestones: Milestone[];
   resources: Resource[];
+  reminder?: Reminder;
   createdAt: number;
   completedAt?: number;
+}
+
+/** A session planned for a specific day (and optionally a time). */
+export interface Plan {
+  id: string;
+  taskId: string;
+  day: string; // YYYY-MM-DD (local)
+  time?: string; // "HH:MM"
+  note?: string;
+  doneAt?: number;
+  createdAt: number;
+}
+
+export interface NudgeSettings {
+  enabled: boolean;
+  hour: number;
+  minute: number;
 }
 
 export interface Entry {
@@ -69,5 +94,6 @@ export interface Profile {
   dailyGoalXp: number;
   haptics: boolean;
   questDay?: string; // day the daily quest bonus was claimed
+  nudge: NudgeSettings; // evening "keep your streak" reminder
   achievements: Record<string, number>; // id -> unlockedAt
 }

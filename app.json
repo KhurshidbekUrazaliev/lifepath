@@ -2,7 +2,7 @@
   "expo": {
     "name": "Lifepath",
     "slug": "lifepath",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "orientation": "portrait",
     "scheme": "lifepath",
     "userInterfaceStyle": "automatic",
@@ -16,7 +16,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-notifications"
     ]
   }
 }

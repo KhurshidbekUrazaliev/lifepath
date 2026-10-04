@@ -10,6 +10,7 @@ import { cardShadow, radius, space, tint, type, useTheme } from '../../src/theme
 import { Card, EmptyState, Field, IconButton, Muted, Screen, SectionTitle, TopBar } from '../../src/components/ui';
 import { ProgressRing } from '../../src/components/Progress';
 import { LogSheet } from '../../src/components/LogSheet';
+import { ReminderCard } from '../../src/components/ReminderCard';
 import { BounceButton, Squish } from '../../src/components/BounceButton';
 import { confirmAction, haptic } from '../../src/components/feedback';
 
@@ -125,6 +126,19 @@ export default function TaskScreen() {
             </View>
           ) : null}
         </View>
+      ) : null}
+
+      {!done ? (
+        <>
+          <ReminderCard task={task} color={color} />
+          <BounceButton
+            label="Plan a session"
+            icon="📅"
+            variant="soft"
+            color={color}
+            onPress={() => router.push({ pathname: '/plan-session', params: { taskId: task.id } })}
+          />
+        </>
       ) : null}
 
       {/* Milestones */}

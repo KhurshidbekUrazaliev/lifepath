@@ -6,6 +6,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useStore } from '../src/store';
 import { useTheme } from '../src/theme';
 import { Celebrations } from '../src/components/Celebrations';
+import { useNotificationSync } from '../src/notifications';
+
+function NotificationSync() {
+  useNotificationSync();
+  return null;
+}
 
 function useHydrated() {
   const [hydrated, setHydrated] = useState(useStore.persist.hasHydrated());
@@ -36,7 +42,9 @@ export default function RootLayout() {
             <Stack.Screen name="task/[id]" />
             <Stack.Screen name="new-folder" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="new-task" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="plan-session" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           </Stack>
+          <NotificationSync />
           <Celebrations />
         </View>
       )}
