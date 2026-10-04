@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { applyActivity, levelInfo, visibleStreak, xpForLevel, xpForLog, streakMultiplier } from './gamify';
 import { computeProgress, forecast, formatAmount } from './progress';
 import { daysBetween, dayKey } from './dates';
-import { Entry, Task } from './types';
+import { Entry, Folder, Plan, Profile, Task } from './types';
+import { daysLabel, monthGrid, parseTime } from './calendar';
+import { buildSchedule } from './schedule';
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -117,6 +119,65 @@ test('streak: visible streak lapses after missed days', () => {
   assert.equal(visibleStreak(st, 0, '2026-10-02'), 4);
   assert.equal(visibleStreak(st, 0, '2026-10-03'), 0);
   assert.equal(visibleStreak(st, 1, '2026-10-03'), 4);
+});
+
+// ---------- v0.2: calendar & notification schedule ----------
+
+test('calendar: October 2026 grid is Sunday-first full weeks', () => {
+  const g = monthGrid(2026, 9); // Oct 1 2026 is a Thursday
+  assert.equal(g[0][0].key, '2026-09-27');
+  assert.equal(g[0][4].key, '2026-10-01');
+  assert.equal(g[0][4].inMonth, true);
+  assert.ok(g.every((w) => w.length === 7));
+  assert.equal(g.flat().filter((d) => d.inMonth).length, 31);
+});
+
+test('calendar: day labels', () => {
+  assert.equal(daysLabel([1, 2, 3, 4, 5, 6, 7]), 'Every day');
+  assert.equal(daysLabel([2, 3, 4, 5, 6]), 'Weekdays');
+  assert.equal(daysLabel([2, 4, 6]), 'Mon, Wed, Fri');
+  assert.deepEqual(parseTime('07:30'), { hour: 7, minute: 30 });
+  assert.equal(parseTime('bad'), null);
+});
+
+const folder: Folder = { id: 'f1', name: 'Reading', icon: '📚', color: '#000', templateId: 'reading', progressType: 'units', unit: 'pages', createdAt: 0 };
+const baseProfile: Profile = {
+  name: '', xp: 0, sparks: 0, streak: { current: 3, best: 3, lastDay: '2026-10-04' }, freezes: 0,
+  dailyGoalXp: 30, haptics: true, achievements: {}, nudge: { enabled: false, hour: 21, minute: 0 },
+};
+
+test('schedule: weekly reminders per selected day, none for finished tasks', () => {
+  const tasks: Task[] = [
+    { ...book, reminder: { hour: 21, minute: 30, days: [2, 4, 6] } },
+    { ...book, id: 't2', completedAt: 1, reminder: { hour: 8, minute: 0, days: [1] } },
+  ];
+  const items = buildSchedule({ tasks, folders: [folder], plans: [], entries: [], profile: baseProfile }, now);
+  assert.equal(items.length, 3);
+  assert.deepEqual(items[0].trigger, { kind: 'weekly', weekday: 2, hour: 21, minute: 30 });
+  assert.equal(items[0].data.taskId, 't1');
+});
+
+test('schedule: future plans only, default 9:00 when no time', () => {
+  const plans: Plan[] = [
+    { id: 'p1', taskId: 't1', day: '2026-10-06', time: '18:00', createdAt: 0 },
+    { id: 'p2', taskId: 't1', day: '2026-10-07', createdAt: 0 },
+    { id: 'p3', taskId: 't1', day: '2026-10-01', createdAt: 0 }, // past
+    { id: 'p4', taskId: 't1', day: '2026-10-08', doneAt: 1, createdAt: 0 }, // done
+  ];
+  const items = buildSchedule({ tasks: [book], folders: [folder], plans, entries: [], profile: baseProfile }, now);
+  assert.deepEqual(items.map((i) => i.id), ['plan-p1', 'plan-p2']);
+  assert.equal(new Date((items[1].trigger as { at: number }).at).getHours(), 9);
+});
+
+test('schedule: nudge skips today once something is logged', () => {
+  const profile = { ...baseProfile, nudge: { enabled: true, hour: 21, minute: 0 } };
+  const none = buildSchedule({ tasks: [book], folders: [folder], plans: [], entries: [], profile }, now);
+  assert.equal(none.length, 7);
+  assert.equal(none[0].title, '🔥 Keep your 3-day streak');
+  const logged: Entry[] = [{ id: 'e', taskId: 't1', at: now - 1000, amount: 5, xp: 10 }];
+  const after = buildSchedule({ tasks: [book], folders: [folder], plans: [], entries: logged, profile }, now);
+  assert.equal(after.length, 6);
+  assert.ok(!after.some((i) => i.id === 'nudge-2026-10-05'));
 });
 
 console.log(`\n${passed} tests passed`);

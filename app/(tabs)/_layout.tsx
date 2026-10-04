@@ -29,6 +29,10 @@ export default function TabsLayout() {
         options={{ title: 'Today', tabBarIcon: ({ color, size }) => <Ionicons name="sunny" color={color} size={size} /> }}
       />
       <Tabs.Screen
+        name="plan"
+        options={{ title: 'Plan', tabBarIcon: ({ color, size }) => <Ionicons name="calendar" color={color} size={size} /> }}
+      />
+      <Tabs.Screen
         name="map"
         options={{ title: 'Life Map', tabBarIcon: ({ color, size }) => <Ionicons name="grid" color={color} size={size} /> }}
       />

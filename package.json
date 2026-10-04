@@ -1,10 +1,10 @@
 {
   "name": "lifepath",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "setup": "npx expo install react react-native expo-router expo-linking expo-constants expo-status-bar expo-haptics react-native-safe-area-context react-native-screens react-native-svg @expo/vector-icons @react-native-async-storage/async-storage react-dom react-native-web @expo/metro-runtime && npm install zustand",
+    "setup": "npx expo install react react-native expo-router expo-linking expo-constants expo-status-bar expo-haptics expo-notifications react-native-safe-area-context react-native-screens react-native-svg @expo/vector-icons @react-native-async-storage/async-storage react-dom react-native-web @expo/metro-runtime && npm install zustand",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
@@ -19,6 +19,7 @@
     "expo-constants": "~57.0.20",
     "expo-haptics": "~57.0.3",
     "expo-linking": "~57.0.11",
+    "expo-notifications": "~57.0.0",
     "expo-router": "~57.0.24",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",

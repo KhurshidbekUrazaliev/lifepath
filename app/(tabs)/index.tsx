@@ -11,6 +11,7 @@ import { Card, EmptyState, Muted, Screen, SectionTitle } from '../../src/compone
 import { ProgressBar, ProgressRing } from '../../src/components/Progress';
 import { TaskRow } from '../../src/components/TaskRow';
 import { LogSheet } from '../../src/components/LogSheet';
+import { PlanRow } from '../../src/components/PlanRow';
 import { BounceButton, Squish } from '../../src/components/BounceButton';
 
 export default function TodayScreen() {
@@ -18,6 +19,7 @@ export default function TodayScreen() {
   const folders = useStore((s) => s.folders);
   const tasks = useStore((s) => s.tasks);
   const entries = useStore((s) => s.entries);
+  const plans = useStore((s) => s.plans);
   const profile = useStore((s) => s.profile);
   const seedExamples = useStore((s) => s.seedExamples);
   const streak = useVisibleStreak();
@@ -38,6 +40,9 @@ export default function TodayScreen() {
   }, [tasks, entries, folders]);
 
   const folderOf = (task: Task) => folders.find((f) => f.id === task.folderId)!;
+  const todaysPlans = plans
+    .filter((p) => p.day === today && tasks.some((x) => x.id === p.taskId))
+    .sort((a, b) => (a.time ?? '99').localeCompare(b.time ?? '99'));
   const questAvailable = profile.questDay !== today && !!questTask;
   const name = profile.name.trim();
 
@@ -101,6 +106,18 @@ export default function TodayScreen() {
             </Text>
           </View>
         </Squish>
+      ) : null}
+
+      {todaysPlans.length > 0 ? (
+        <>
+          <SectionTitle right={<Muted>{todaysPlans.filter((p) => p.doneAt).length} / {todaysPlans.length} done</Muted>}>
+            Planned today
+          </SectionTitle>
+          {todaysPlans.map((p) => {
+            const task = tasks.find((x) => x.id === p.taskId)!;
+            return <PlanRow key={p.id} plan={p} task={task} folder={folderOf(task)} onLog={setLogTask} />;
+          })}
+        </>
       ) : null}
 
       {tasks.length === 0 ? (
