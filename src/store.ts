@@ -95,9 +95,11 @@ interface State {
   dismissCelebration: (id: string) => void;
   seedExamples: () => void;
   resetAll: () => void;
+  /** Replaces all data at once (used by cloud sync). */
+  replaceData: (data: { folders: Folder[]; tasks: Task[]; entries: Entry[]; plans: Plan[]; profile: Profile }) => void;
 }
 
-const initialProfile: Profile = {
+export const initialProfile: Profile = {
   name: '',
   xp: 0,
   sparks: 0,
@@ -446,6 +448,9 @@ export const useStore = create<State>()(
           plans: [...s.plans, ...plans],
         }));
       },
+
+      replaceData: (data) =>
+        set({ folders: data.folders, tasks: data.tasks, entries: data.entries, plans: data.plans, profile: data.profile }),
 
       resetAll: () => set({ folders: [], tasks: [], entries: [], plans: [], profile: initialProfile, celebrations: [] }),
     }),

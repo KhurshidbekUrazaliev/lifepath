@@ -10,6 +10,8 @@ import { confirmAction, haptic } from '../../src/components/feedback';
 import { TimePicker } from '../../src/components/TimePicker';
 import { ensurePermission, notificationsAvailable, notificationsUnavailableReason, sendTestNotification } from '../../src/notifications';
 import { timeLabel } from '../../src/lib/calendar';
+import { AccountCard } from '../../src/components/AccountCard';
+import { useAuth } from '../../src/sync';
 
 export default function MeScreen() {
   const t = useTheme();
@@ -22,6 +24,7 @@ export default function MeScreen() {
   const toggleHaptics = useStore((s) => s.toggleHaptics);
   const resetAll = useStore((s) => s.resetAll);
   const setNudge = useStore((s) => s.setNudge);
+  const signedIn = useAuth((s) => !!s.userId);
   const [notifyMsg, setNotifyMsg] = useState('');
   const [editNudge, setEditNudge] = useState(false);
 
@@ -50,6 +53,8 @@ export default function MeScreen() {
       <View style={{ paddingTop: space.lg }}>
         <Text style={[type.hero, { color: t.text }]}>You</Text>
       </View>
+
+      <AccountCard />
 
       {/* Echo teaser: placeholder until the companion arrives in a later version */}
       <Card style={styles.echo}>
@@ -163,11 +168,16 @@ export default function MeScreen() {
           variant="soft"
           color={t.danger}
           onPress={() =>
-            confirmAction('Reset everything?', `This deletes ${folders.length} folders, ${tasks.length} tasks and all history on this device.`, 'Reset', resetAll)
+            confirmAction(
+              'Reset everything?',
+              `This deletes ${folders.length} folders, ${tasks.length} tasks and all history${signedIn ? ' on all your devices and in your account' : ' on this device'}.`,
+              'Reset',
+              resetAll,
+            )
           }
         />
       </Card>
-      <Muted style={{ textAlign: 'center' }}>Lifepath v0.2 · data stays on this device</Muted>
+      <Muted style={{ textAlign: 'center' }}>{`Lifepath v0.3 · ${signedIn ? 'synced to your account' : 'data stays on this device'}`}</Muted>
     </Screen>
   );
 }

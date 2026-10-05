@@ -6,6 +6,7 @@ import { daysBetween, dayKey } from './dates';
 import { Entry, Folder, Plan, Profile, Task } from './types';
 import { daysLabel, monthGrid, parseTime } from './calendar';
 import { buildSchedule } from './schedule';
+import { fromRecordMap, planSync, RemoteRecord, stableStringify, toRecordMap } from './syncPlan';
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -178,6 +179,74 @@ test('schedule: nudge skips today once something is logged', () => {
   const after = buildSchedule({ tasks: [book], folders: [folder], plans: [], entries: logged, profile }, now);
   assert.equal(after.length, 6);
   assert.ok(!after.some((i) => i.id === 'nudge-2026-10-05'));
+});
+
+// ---------- v0.3: sync planning ----------
+
+const syncProfile: Profile = { ...baseProfile, xp: 100 };
+const folderA: Folder = { ...folder, id: 'fa' };
+const data0 = { folders: [folderA], tasks: [book], entries: [] as Entry[], plans: [] as Plan[], profile: syncProfile };
+
+test('sync: stableStringify ignores key order and undefined', () => {
+  assert.equal(stableStringify({ b: 1, a: { d: 2, c: undefined, e: 3 } }), stableStringify({ a: { e: 3, d: 2 }, b: 1 }));
+});
+
+test('sync: first sync pushes everything local', () => {
+  const plan = planSync(toRecordMap(data0), {}, []);
+  assert.equal(plan.push.length, 3); // folder, task, profile
+  assert.equal(plan.localChanged, false);
+  const again = planSync(toRecordMap(data0), plan.snapshot, []);
+  assert.equal(again.push.length, 0, 'nothing to push once in sync');
+});
+
+test('sync: remote edit applies when unchanged locally', () => {
+  const first = planSync(toRecordMap(data0), {}, []);
+  const remote: RemoteRecord[] = [{ kind: 'task', id: 't1', data: { ...book, title: 'Renamed' }, deleted: false, updated_at: '2026-10-05T01:00:00Z' }];
+  const plan = planSync(toRecordMap(data0), first.snapshot, remote);
+  assert.equal(plan.localChanged, true);
+  assert.equal(plan.push.length, 0);
+  const out = fromRecordMap(plan.local, syncProfile);
+  assert.equal(out.tasks[0].title, 'Renamed');
+});
+
+test('sync: remote delete removes record; local delete pushes tombstone', () => {
+  const first = planSync(toRecordMap(data0), {}, []);
+  const gone = planSync(toRecordMap(data0), first.snapshot, [{ kind: 'folder', id: 'fa', data: null, deleted: true, updated_at: 'x' }]);
+  assert.equal(fromRecordMap(gone.local, syncProfile).folders.length, 0);
+  const localDel = planSync(toRecordMap({ ...data0, folders: [] }), first.snapshot, []);
+  assert.deepEqual(localDel.push, [{ kind: 'folder', id: 'fa', data: null, deleted: true }]);
+});
+
+test('sync: conflict keeps local edit and pushes it', () => {
+  const first = planSync(toRecordMap(data0), {}, []);
+  const edited = { ...data0, tasks: [{ ...book, title: 'Mine' }] };
+  const remote: RemoteRecord[] = [{ kind: 'task', id: 't1', data: { ...book, title: 'Theirs' }, deleted: false, updated_at: 'x' }];
+  const plan = planSync(toRecordMap(edited), first.snapshot, remote);
+  assert.equal(fromRecordMap(plan.local, syncProfile).tasks[0].title, 'Mine');
+  assert.equal(plan.push.length, 1);
+});
+
+test('sync: profile conflict merges without losing progress', () => {
+  const first = planSync(toRecordMap(data0), {}, []);
+  const localP = { ...syncProfile, xp: 150, achievements: { a: 1 }, streak: { current: 4, best: 4, lastDay: '2026-10-05' } };
+  const remoteP = { ...syncProfile, xp: 130, achievements: { b: 2 }, streak: { current: 9, best: 9, lastDay: '2026-10-04' } };
+  const plan = planSync(toRecordMap({ ...data0, profile: localP }), first.snapshot, [
+    { kind: 'profile', id: 'me', data: remoteP, deleted: false, updated_at: 'x' },
+  ]);
+  const p = fromRecordMap(plan.local, syncProfile).profile;
+  assert.equal(p.xp, 150);
+  assert.deepEqual(Object.keys(p.achievements).sort(), ['a', 'b']);
+  assert.equal(p.streak.current, 4, 'most recent streak wins');
+  assert.equal(p.streak.best, 9, 'best streak never drops');
+  assert.equal(plan.push.length, 1);
+});
+
+test('sync: new device with example data merges with cloud data', () => {
+  const cloud: RemoteRecord[] = [{ kind: 'folder', id: 'cloudF', data: { ...folder, id: 'cloudF' }, deleted: false, updated_at: 'x' }];
+  const plan = planSync(toRecordMap(data0), {}, cloud);
+  const out = fromRecordMap(plan.local, syncProfile);
+  assert.deepEqual(out.folders.map((f) => f.id).sort(), ['cloudF', 'fa']);
+  assert.ok(plan.push.some((r) => r.id === 'fa'));
 });
 
 console.log(`\n${passed} tests passed`);

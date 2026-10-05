@@ -1,8 +1,24 @@
-# Lifepath v0.2
+# Lifepath v0.3
 
 Track everything you're working on, in folders, with progress that feels good to log.
 
-Everything runs on your device: no account, no server, no companion character yet.
+Works fully offline. Sign in with Google to back up and sync across your phone and the web.
+
+## New in v0.3
+
+- **Sign in with Google** (You tab) to back up everything and sync between devices and the web
+- **Offline first:** the app works without internet and syncs when it's back (after changes, when you open the app, and every minute)
+- **Your data comes with you:** what's already on the phone is uploaded on first sign-in; a new device downloads it all
+- **Sync status** on the You tab: synced, syncing, offline, or a problem
+- Conflicts are handled per item; XP, Sparks, best streak and achievements never go backwards
+
+### One-time cloud setup (Supabase + Google)
+
+1. **Database:** Supabase → SQL Editor → New query → paste [`supabase/migrations/0001_records.sql`](supabase/migrations/0001_records.sql) → Run.
+2. **Google OAuth client:** in [Google Cloud Console](https://console.cloud.google.com) create a project, set up the OAuth consent screen (External), then Credentials → Create OAuth client ID → **Web application** with authorized redirect URI `https://lpfqevtdhedhanmncbov.supabase.co/auth/v1/callback`.
+3. **Supabase Google provider:** Authentication → Sign In / Providers → Google → enable, paste the Client ID and Client Secret.
+4. **Redirect URLs:** Authentication → URL Configuration → add `lifepath://**` and `http://localhost:8081/**`.
+5. **Rebuild the development app once** (Google sign-in adds a native package): `npx eas-cli@latest build --profile development --platform android`.
 
 ## New in v0.2
 
@@ -81,7 +97,7 @@ Open the **Lifepath** app on your phone and scan the QR code. Commit the changes
 npm run test:logic
 ```
 
-Checks XP, levels, streaks and freezes, progress math, the pace forecast, the calendar grid, and which reminders get scheduled.
+Checks XP, levels, streaks and freezes, progress math, the pace forecast, the calendar grid, which reminders get scheduled, and how sync merges changes between devices.
 
 ## Project structure
 
@@ -99,6 +115,9 @@ app/                    screens (file-based routing with expo-router)
 src/
   store.ts              all app state and actions, saved on device
   notifications.ts      schedules local reminders from app data
+  sync.ts               Google sign-in and cloud sync engine
+  lib/syncPlan.ts       pure merge rules for sync (tested)
+supabase/migrations/    database schema to run in Supabase
   theme.ts              colors, type scale, light/dark
   lib/                  pure logic: types, progress, XP & streaks, templates, dates
   components/           buttons, progress bars & rings, log sheet, celebrations
@@ -109,8 +128,8 @@ src/
 | Version | Adds |
 |---|---|
 | 0.1 | Folders, tasks, logging, XP, streaks, achievements, local storage |
-| **0.2** (this) | Reminders, evening streak nudge, calendar view, planned sessions |
-| 0.3 | Accounts and cloud sync (Supabase), web version polish |
+| 0.2 | Reminders, evening streak nudge, calendar view, planned sessions |
+| **0.3** (this) | Google sign-in and cloud sync (Supabase) |
 | 0.4 | Evidence logs: in-app photo and summary, pending XP, trust tiers |
 | 0.5 | **Echo Lite:** simple companion with six attributes that react to your folders |
 | 0.6 | Sparks shop and wardrobe (placeholder items) |

@@ -7,9 +7,11 @@ import { useStore } from '../src/store';
 import { useTheme } from '../src/theme';
 import { Celebrations } from '../src/components/Celebrations';
 import { useNotificationSync } from '../src/notifications';
+import { useSyncManager } from '../src/sync';
 
-function NotificationSync() {
+function Background() {
   useNotificationSync();
+  useSyncManager();
   return null;
 }
 
@@ -43,8 +45,9 @@ export default function RootLayout() {
             <Stack.Screen name="new-folder" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="new-task" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="plan-session" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="auth-callback" options={{ animation: 'fade' }} />
           </Stack>
-          <NotificationSync />
+          <Background />
           <Celebrations />
         </View>
       )}
