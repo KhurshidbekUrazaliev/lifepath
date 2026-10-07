@@ -74,6 +74,8 @@ export interface NudgeSettings {
 export interface Evidence {
   summary?: string; // what you did or learned, in your own words
   url?: string; // a link: a workout app, a lesson page, a book page
+  photoUri?: string; // photo on this device (it may not exist on your other devices)
+  photoPath?: string; // where the uploaded photo lives in cloud storage
   at: number; // when the proof was added
 }
 
@@ -81,6 +83,7 @@ export interface Evidence {
 export interface EvidenceInput {
   summary?: string;
   url?: string;
+  photoUri?: string;
 }
 
 /**
