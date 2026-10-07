@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { StyleSheet, Switch, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { useStore, useVisibleStreak } from '../../src/store';
+import { useEcho } from '../../src/echoState';
+import { EchoAvatar } from '../../src/components/EchoAvatar';
 import { ACHIEVEMENTS, levelInfo } from '../../src/lib/gamify';
 import { EVIDENCE_WINDOW_DAYS, pendingSparks } from '../../src/lib/evidence';
+import { sparkBalance } from '../../src/lib/wardrobe';
 import { radius, space, tint, type, useTheme } from '../../src/theme';
 import { Card, Chip, Field, Muted, Screen, SectionTitle } from '../../src/components/ui';
 import { ProgressBar } from '../../src/components/Progress';
-import { BounceButton } from '../../src/components/BounceButton';
+import { BounceButton, Squish } from '../../src/components/BounceButton';
 import { confirmAction, haptic } from '../../src/components/feedback';
 import { TimePicker } from '../../src/components/TimePicker';
 import { ensurePermission, notificationsAvailable, notificationsUnavailableReason, sendTestNotification } from '../../src/notifications';
@@ -40,10 +44,11 @@ export default function MeScreen() {
   const streak = useVisibleStreak();
   const lvl = levelInfo(profile.xp);
   const waiting = pendingSparks(entries);
+  const echo = useEcho();
 
   const stats = [
     { label: 'Total XP', value: profile.xp.toLocaleString(), icon: '⚡' },
-    { label: 'Sparks', value: profile.sparks.toLocaleString(), icon: '✨' },
+    { label: 'Sparks', value: sparkBalance(profile).toLocaleString(), icon: '✨' },
     { label: 'Streak', value: String(streak), icon: '🔥' },
     { label: 'Best streak', value: String(profile.streak.best), icon: '🏅' },
     { label: 'Logs', value: String(entries.length), icon: '📝' },
@@ -58,17 +63,23 @@ export default function MeScreen() {
 
       <AccountCard />
 
-      {/* Echo teaser: placeholder until the companion arrives in a later version */}
-      <Card style={styles.echo}>
-        <View style={[styles.echoAvatar, { backgroundColor: t.accentSoft, borderColor: t.accent }]}>
-          <Text style={{ fontSize: 38 }}>🌱</Text>
-        </View>
-        <View style={{ flex: 1, gap: 4 }}>
-          <Text style={[type.tiny, { color: t.accent }]}>COMING SOON</Text>
-          <Text style={[type.heading, { color: t.text }]}>Your Echo</Text>
-          <Muted>A companion that grows from your real effort. Your XP and Sparks are already counting toward it.</Muted>
-        </View>
-      </Card>
+      {/* Echo: tap to open the companion */}
+      <Squish onPress={() => router.push('/echo')} hapticKind="select" accessibilityLabel="Open your Echo">
+        <Card style={styles.echo}>
+          {echo.echo ? (
+            <EchoAvatar size={84} skin={echo.echo.skin} hair={echo.echo.hair} stage={echo.stage.index} mood={echo.mood} outfit={echo.outfit} accent={echo.accent} />
+          ) : (
+            <View style={[styles.echoAvatar, { backgroundColor: t.accentSoft, borderColor: t.accent }]}>
+              <Text style={{ fontSize: 38 }}>🌱</Text>
+            </View>
+          )}
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={[type.tiny, { color: t.accent }]}>{echo.echo ? `${echo.archetype.toUpperCase()} · ${echo.stage.name.toUpperCase()}` : 'NEW'}</Text>
+            <Text style={[type.heading, { color: t.text }]}>{echo.echo ? echo.echo.name : 'Meet your Echo'}</Text>
+            <Muted>{echo.echo ? echo.line : 'A companion that grows from your real effort. Name it anything you like.'}</Muted>
+          </View>
+        </Card>
+      </Squish>
 
       <Card style={{ gap: space.md }}>
         <Field label="Your name" placeholder="What should we call you?" value={profile.name} onChangeText={setName} />

@@ -110,6 +110,10 @@ export function mergeProfiles(local: Profile, remote: Profile): Profile {
     streak: { ...newerStreak, best: Math.max(local.streak?.best ?? 0, remote.streak?.best ?? 0) },
     achievements: { ...(remote.achievements ?? {}), ...(local.achievements ?? {}) },
     questDay: (remote.questDay ?? '') > (local.questDay ?? '') ? remote.questDay : local.questDay,
+    // Wardrobe: everything either device bought stays owned; the worn outfit follows this device.
+    owned: Array.from(new Set([...(remote.owned ?? []), ...(local.owned ?? [])])),
+    // Echo: keep the one that was named; if both were, this device wins.
+    echo: local.echo?.name ? local.echo : (remote.echo ?? local.echo),
   };
 }
 

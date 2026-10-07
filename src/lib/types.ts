@@ -110,6 +110,14 @@ export interface Streak {
   lastDay?: string; // YYYY-MM-DD (local)
 }
 
+/** The companion. Name is free; looks are indexes into the palettes in lib/echo.ts. */
+export interface EchoProfile {
+  name: string;
+  skin: number;
+  hair: number;
+  bornAt: number;
+}
+
 export interface Profile {
   name: string;
   xp: number;
@@ -121,4 +129,7 @@ export interface Profile {
   questDay?: string; // day the daily quest bonus was claimed
   nudge: NudgeSettings; // evening "keep your streak" reminder
   achievements: Record<string, number>; // id -> unlockedAt
+  echo?: EchoProfile; // set once the person names their Echo
+  owned?: string[]; // wardrobe item ids bought with Sparks (free items are always available)
+  outfit?: Partial<Record<'top' | 'hat' | 'accessory' | 'backdrop', string>>; // worn items
 }

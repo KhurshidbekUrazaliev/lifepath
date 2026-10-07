@@ -1,13 +1,15 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Entry, EvidenceInput, Folder, Milestone, NudgeSettings, Plan, Profile, ProgressType, Reminder, Resource, Task } from './lib/types';
+import { EchoProfile, Entry, EvidenceInput, Folder, Milestone, NudgeSettings, Plan, Profile, ProgressType, Reminder, Resource, Task } from './lib/types';
 import { dayKey, addDays } from './lib/dates';
 import { computeProgress, loggedToday } from './lib/progress';
 import {
   ACHIEVEMENTS, XP, applyActivity, earnedAchievements, levelInfo, sparksFor, streakMultiplier, visibleStreak, xpForLog,
 } from './lib/gamify';
 import { templateById } from './lib/templates';
+import { computeAttributes, stageFor, totalPoints } from './lib/echo';
+import { BuyCheck, Slot, canBuy, isOwned, itemById } from './lib/wardrobe';
 import { cleanEvidence, evidenceBonus, evidenceState, sparksForAward, sparksGranted } from './lib/evidence';
 
 export function uid(): string {
@@ -100,6 +102,12 @@ interface State {
   togglePlanDone: (id: string) => void;
   setNudge: (patch: Partial<NudgeSettings>) => void;
 
+  /** Names the Echo (first time) or changes its name and looks. */
+  saveEcho: (input: { name: string; skin: number; hair: number }) => void;
+  /** Spends Sparks on a wardrobe item. */
+  buyItem: (itemId: string) => BuyCheck;
+  /** Puts an owned item on Echo (or takes it off by wearing a "none" item). */
+  wearItem: (slot: Slot, itemId: string) => void;
   setName: (name: string) => void;
   setDailyGoal: (xp: number) => void;
   toggleHaptics: () => void;
@@ -448,6 +456,38 @@ export const useStore = create<State>()(
         set((s) => ({ plans: s.plans.map((p) => (p.id === id ? { ...p, doneAt: p.doneAt ? undefined : Date.now() } : p)) })),
 
       setNudge: (patch) => set((s) => ({ profile: { ...s.profile, nudge: { ...s.profile.nudge, ...patch } } })),
+
+      saveEcho: ({ name, skin, hair }) =>
+        set((s) => {
+          const clean = name.trim().slice(0, 20);
+          if (!clean) return {};
+          const echo: EchoProfile = { name: clean, skin, hair, bornAt: s.profile.echo?.bornAt ?? Date.now() };
+          return { profile: { ...s.profile, echo } };
+        }),
+
+      buyItem: (itemId) => {
+        const s = get();
+        const stage = stageFor(totalPoints(computeAttributes(s.entries, s.tasks, s.folders))).index;
+        const check = canBuy(s.profile, itemId, stage);
+        if (!check.ok) return check;
+        const item = itemById(itemId)!;
+        set({
+          profile: {
+            ...s.profile,
+            owned: [...(s.profile.owned ?? []), itemId],
+            outfit: { ...(s.profile.outfit ?? {}), [item.slot]: itemId }, // wear it right away
+          },
+          celebrations: [...s.celebrations, { id: uid(), kind: 'achievement', title: item.name, subtitle: 'Added to your wardrobe', icon: '🛍️' }],
+        });
+        return check;
+      },
+
+      wearItem: (slot, itemId) =>
+        set((s) => {
+          const item = itemById(itemId);
+          if (!item || item.slot !== slot || !isOwned(s.profile, item)) return {};
+          return { profile: { ...s.profile, outfit: { ...(s.profile.outfit ?? {}), [slot]: itemId } } };
+        }),
 
       setName: (name) => set((s) => ({ profile: { ...s.profile, name } })),
       setDailyGoal: (xp) => set((s) => ({ profile: { ...s.profile, dailyGoalXp: xp } })),
