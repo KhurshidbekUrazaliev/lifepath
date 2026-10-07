@@ -1,8 +1,19 @@
-# Lifepath v0.3
+# Lifepath v0.4
 
 Track everything you're working on, in folders, with progress that feels good to log.
 
 Works fully offline. Sign in with Google to back up and sync across your phone and the web.
+
+## New in v0.4: proof for your logs
+
+- **Add proof** when you log: a short summary in your own words (15+ characters) and/or a link. It earns **+25% bonus XP** and releases your **Sparks** right away.
+- **One-tap logs still work.** The XP counts at once (levels, streaks), but the Sparks stay **pending for 7 days**. Open the task's History and tap **Add proof** to release them.
+- Logs show their state: *Proof added*, *Add proof · N days left*, or *Sparks expired*. Added proof (summary and link) is shown under the log.
+- The **You** tab shows how many Sparks are waiting for proof.
+- Logs from before v0.4 keep the Sparks they already earned.
+- Each log records its trust level, so the later rankings can count only proven XP.
+- No new native packages: after `git pull`, the running dev app just reloads. No rebuild needed.
+- Photos, AI checks and auto-verified logs (timers, Health, ISBN) come in later versions.
 
 ## New in v0.3
 
@@ -129,8 +140,8 @@ supabase/migrations/    database schema to run in Supabase
 |---|---|
 | 0.1 | Folders, tasks, logging, XP, streaks, achievements, local storage |
 | 0.2 | Reminders, evening streak nudge, calendar view, planned sessions |
-| **0.3** (this) | Google sign-in and cloud sync (Supabase) |
-| 0.4 | Evidence logs: in-app photo and summary, pending XP, trust tiers |
+| 0.3 | Google sign-in and cloud sync (Supabase) |
+| **0.4** (this) | Proof for logs (summary and link), bonus XP, Sparks held until proven, trust tiers |
 | 0.5 | **Echo Lite:** simple companion with six attributes that react to your folders |
 | 0.6 | Sparks shop and wardrobe (placeholder items) |
 | 0.7 | Rankings: friends, local, global, weekly leagues (verified XP only) |

@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Entry, Folder, Milestone, NudgeSettings, Plan, Profile, ProgressType, Reminder, Resource, Task } from './lib/types';
+import { Entry, EvidenceInput, Folder, Milestone, NudgeSettings, Plan, Profile, ProgressType, Reminder, Resource, Task } from './lib/types';
 import { dayKey, addDays } from './lib/dates';
 import { computeProgress, loggedToday } from './lib/progress';
 import {
   ACHIEVEMENTS, XP, applyActivity, earnedAchievements, levelInfo, sparksFor, streakMultiplier, visibleStreak, xpForLog,
 } from './lib/gamify';
 import { templateById } from './lib/templates';
+import { cleanEvidence, evidenceBonus, evidenceState, sparksForAward, sparksGranted } from './lib/evidence';
 
 export function uid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -28,7 +29,14 @@ export interface LogResult {
   levelUp?: number;
   streakIncreased: boolean;
   questBonus: boolean;
+  verified: boolean; // proof was attached
+  bonus: number; // extra XP earned for the proof
+  pendingSparks: number; // Sparks waiting for proof (quick logs only)
 }
+
+export type AttachResult =
+  | { ok: true; bonus: number; sparks: number }
+  | { ok: false; reason: 'invalid' | 'expired' | 'missing' | 'already' };
 
 export interface NewFolderInput {
   name: string;
@@ -75,7 +83,8 @@ interface State {
   completeTask: (id: string) => void;
   reopenTask: (id: string) => void;
 
-  logProgress: (taskId: string, amount: number, note?: string) => LogResult | null;
+  logProgress: (taskId: string, amount: number, note?: string, evidence?: EvidenceInput) => LogResult | null;
+  attachEvidence: (entryId: string, input: EvidenceInput) => AttachResult;
   deleteEntry: (entryId: string) => void;
   toggleMilestone: (taskId: string, milestoneId: string) => void;
   addMilestone: (taskId: string, title: string) => void;
@@ -124,13 +133,14 @@ function award(
   s: Pick<State, 'profile' | 'tasks' | 'entries' | 'folders'>,
   xp: number,
   profilePatch: Partial<Profile> = {},
+  sparks: number = sparksFor(xp),
 ): { profile: Profile; celebrations: Celebration[]; levelUp?: number } {
   const before = levelInfo(s.profile.xp).level;
   const profile: Profile = {
     ...s.profile,
     ...profilePatch,
     xp: s.profile.xp + xp,
-    sparks: s.profile.sparks + sparksFor(xp),
+    sparks: s.profile.sparks + sparks,
   };
   const celebrations: Celebration[] = [];
   const after = levelInfo(profile.xp).level;
@@ -236,7 +246,7 @@ export const useStore = create<State>()(
 
       reopenTask: (id) => set((s) => ({ tasks: mapTask(s.tasks, id, (t) => ({ ...t, completedAt: undefined })) })),
 
-      logProgress: (taskId, amount, note) => {
+      logProgress: (taskId, amount, note, evidenceInput) => {
         const s = get();
         const task = s.tasks.find((t) => t.id === taskId);
         if (!task || amount <= 0) return null;
@@ -252,7 +262,13 @@ export const useStore = create<State>()(
           xp += XP.dailyQuest;
         }
 
-        const entry: Entry = { id: uid(), taskId, at: Date.now(), amount, note: note?.trim() || undefined, xp };
+        // Proof earns bonus XP now and releases the Sparks; without it Sparks stay pending.
+        const evidence = cleanEvidence(evidenceInput);
+        const bonus = evidence ? evidenceBonus(xp) : 0;
+        xp += bonus;
+
+        const trust = evidence ? 'evidence' : 'quick';
+        const entry: Entry = { id: uid(), taskId, at: Date.now(), amount, note: note?.trim() || undefined, xp, trust, evidence };
         const entries = [...s.entries, entry];
 
         // Auto-complete when the target is reached.
@@ -264,13 +280,14 @@ export const useStore = create<State>()(
           tasks = mapTask(tasks, taskId, (t) => ({ ...t, completedAt: Date.now() }));
         }
 
-        const { profile, celebrations, levelUp } = award({ ...s, tasks, entries }, xp, {
-          streak: st.streak,
-          freezes: st.freezes,
-          questDay: questBonus ? today : s.profile.questDay,
-        });
+        const { profile, celebrations, levelUp } = award(
+          { ...s, tasks, entries },
+          xp,
+          { streak: st.streak, freezes: st.freezes, questDay: questBonus ? today : s.profile.questDay },
+          sparksForAward(trust, entry.xp, xp),
+        );
 
-        const queue: Celebration[] = [{ id: uid(), kind: 'xp', title: `+${xp} XP`, xp }];
+        const queue: Celebration[] = [{ id: uid(), kind: 'xp', title: `+${xp} XP`, subtitle: evidence ? 'Proof bonus included' : undefined, xp }];
         if (completed) {
           queue.push({ id: uid(), kind: 'complete', title: task.title, subtitle: 'Completed!', icon: '🏁', xp: XP.taskComplete });
         }
@@ -281,7 +298,37 @@ export const useStore = create<State>()(
           plans: completeTodaysPlans(s.plans, taskId, today),
           celebrations: [...s.celebrations, ...queue, ...celebrations],
         });
-        return { xp, completed, levelUp, streakIncreased: st.increased, questBonus };
+        return {
+          xp, completed, levelUp, streakIncreased: st.increased, questBonus,
+          verified: !!evidence, bonus, pendingSparks: evidence ? 0 : sparksFor(entry.xp),
+        };
+      },
+
+      attachEvidence: (entryId, input) => {
+        const s = get();
+        const entry = s.entries.find((e) => e.id === entryId);
+        if (!entry) return { ok: false, reason: 'missing' };
+        const state = evidenceState(entry);
+        if (state === 'verified' || state === 'legacy') return { ok: false, reason: 'already' };
+        if (state === 'expired') return { ok: false, reason: 'expired' };
+        const evidence = cleanEvidence(input);
+        if (!evidence) return { ok: false, reason: 'invalid' };
+
+        const bonus = evidenceBonus(entry.xp);
+        const updated: Entry = { ...entry, xp: entry.xp + bonus, trust: 'evidence', evidence };
+        const entries = s.entries.map((e) => (e.id === entryId ? updated : e));
+        const sparks = sparksGranted(updated); // none were paid before, so all of it is released now
+        const { profile, celebrations } = award({ ...s, entries }, bonus, {}, sparks);
+        set({
+          entries,
+          profile,
+          celebrations: [
+            ...s.celebrations,
+            { id: uid(), kind: 'xp', title: `+${bonus} XP`, subtitle: sparks ? `Proof added · +${sparks} Sparks released` : 'Proof added', xp: bonus },
+            ...celebrations,
+          ],
+        });
+        return { ok: true, bonus, sparks };
       },
 
       deleteEntry: (entryId) =>
@@ -293,7 +340,7 @@ export const useStore = create<State>()(
             profile: {
               ...s.profile,
               xp: Math.max(0, s.profile.xp - entry.xp),
-              sparks: Math.max(0, s.profile.sparks - sparksFor(entry.xp)),
+              sparks: Math.max(0, s.profile.sparks - sparksGranted(entry)),
             },
           };
         }),
@@ -318,7 +365,7 @@ export const useStore = create<State>()(
         const today = dayKey();
         const st = applyActivity(s.profile.streak, s.profile.freezes, today);
         let xp = Math.round(XP.milestone * streakMultiplier(st.streak.current));
-        const entry: Entry = { id: uid(), taskId, at: Date.now(), amount: 0, note: `✓ ${ms.title}`, xp };
+        const entry: Entry = { id: uid(), taskId, at: Date.now(), amount: 0, note: `✓ ${ms.title}`, xp, trust: 'quick' };
         const entries = [...s.entries, entry];
 
         let completed = false;
@@ -328,7 +375,12 @@ export const useStore = create<State>()(
           xp += XP.taskComplete;
           tasks = mapTask(tasks, taskId, (t) => ({ ...t, completedAt: Date.now() }));
         }
-        const { profile, celebrations } = award({ ...s, tasks, entries }, xp, { streak: st.streak, freezes: st.freezes });
+        const { profile, celebrations } = award(
+          { ...s, tasks, entries },
+          xp,
+          { streak: st.streak, freezes: st.freezes },
+          sparksForAward('quick', entry.xp, xp),
+        );
         const queue: Celebration[] = [{ id: uid(), kind: 'xp', title: `+${xp} XP`, xp }];
         if (completed) queue.push({ id: uid(), kind: 'complete', title: task.title, subtitle: 'Completed!', icon: '🏁' });
         set({

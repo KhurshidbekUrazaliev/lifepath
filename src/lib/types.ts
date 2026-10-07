@@ -70,6 +70,26 @@ export interface NudgeSettings {
   minute: number;
 }
 
+/** Proof that a log really happened (v0.4). Photos arrive in a later version. */
+export interface Evidence {
+  summary?: string; // what you did or learned, in your own words
+  url?: string; // a link: a workout app, a lesson page, a book page
+  at: number; // when the proof was added
+}
+
+/** What the person typed into the proof fields (before it is validated). */
+export interface EvidenceInput {
+  summary?: string;
+  url?: string;
+}
+
+/**
+ * quick    = one tap. XP counts, but Sparks stay pending until proof is added (7 days).
+ * evidence = proof attached. Bonus XP and the Sparks are released.
+ * Entries from before v0.4 have no trust field and keep the Sparks they already earned.
+ */
+export type Trust = 'quick' | 'evidence';
+
 export interface Entry {
   id: string;
   taskId: string;
@@ -77,6 +97,8 @@ export interface Entry {
   amount: number; // pages / minutes / km; 1 for a session; 0 for milestone ticks
   note?: string;
   xp: number;
+  trust?: Trust;
+  evidence?: Evidence;
 }
 
 export interface Streak {

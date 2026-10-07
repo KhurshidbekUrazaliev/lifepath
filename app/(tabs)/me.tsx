@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Switch, Text, View } from 'react-native';
 import { useStore, useVisibleStreak } from '../../src/store';
 import { ACHIEVEMENTS, levelInfo } from '../../src/lib/gamify';
+import { EVIDENCE_WINDOW_DAYS, pendingSparks } from '../../src/lib/evidence';
 import { radius, space, tint, type, useTheme } from '../../src/theme';
 import { Card, Chip, Field, Muted, Screen, SectionTitle } from '../../src/components/ui';
 import { ProgressBar } from '../../src/components/Progress';
@@ -38,6 +39,7 @@ export default function MeScreen() {
   };
   const streak = useVisibleStreak();
   const lvl = levelInfo(profile.xp);
+  const waiting = pendingSparks(entries);
 
   const stats = [
     { label: 'Total XP', value: profile.xp.toLocaleString(), icon: '⚡' },
@@ -88,6 +90,18 @@ export default function MeScreen() {
           </View>
         ))}
       </View>
+
+      {waiting > 0 ? (
+        <Card style={styles.waiting}>
+          <Text style={{ fontSize: 26 }}>🛡️</Text>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[type.body, { color: t.text, fontWeight: '800' }]}>{waiting} Sparks waiting for proof</Text>
+            <Muted>
+              Open a task's history and tap "Add proof" on a log within {EVIDENCE_WINDOW_DAYS} days to release them and earn bonus XP.
+            </Muted>
+          </View>
+        </Card>
+      ) : null}
 
       <SectionTitle right={<Muted>{Object.keys(profile.achievements).length} / {ACHIEVEMENTS.length}</Muted>}>Achievements</SectionTitle>
       <View style={styles.statGrid}>
@@ -183,6 +197,7 @@ export default function MeScreen() {
 }
 
 const styles = StyleSheet.create({
+  waiting: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   echo: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
   echoAvatar: { width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderStyle: 'dashed' },
   between: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
