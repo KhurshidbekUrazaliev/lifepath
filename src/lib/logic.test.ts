@@ -8,6 +8,8 @@ import { daysLabel, monthGrid, parseTime } from './calendar';
 import { buildSchedule } from './schedule';
 import { fromRecordMap, mergeProfiles, planSync, RemoteRecord, stableStringify, toRecordMap } from './syncPlan';
 import { canBuy, sparkBalance } from './wardrobe';
+import { MAX_SUGGESTIONS, sanitizePlan, suggestPlan } from './planner';
+import { FREE_FOLDER_LIMIT, canCreateFolder, isPlusActive } from './plus';
 import { cleanDisplayName, daysLeftInWeek, flag, rankMedal, weekEndMs, weekStartMs } from './rankings';
 import {
   ATTRIBUTES, archetypeFor, attrLevel, computeAttributes, echoLine, echoMood, stageFor, totalPoints,
@@ -423,6 +425,87 @@ test('rankings: flags, names, medals', () => {
   assert.equal(cleanDisplayName('x'.repeat(40))?.length, 24);
   assert.equal(rankMedal(1), '🥇');
   assert.equal(rankMedal(4), '');
+});
+
+// ---------- Plus and planner (v0.8) ----------
+
+test('plus: free limit and entitlement expiry', () => {
+  assert.equal(FREE_FOLDER_LIMIT, 3);
+  assert.equal(canCreateFolder(2, false), true);
+  assert.equal(canCreateFolder(3, false), false);
+  assert.equal(canCreateFolder(30, true), true);
+  assert.equal(isPlusActive(null), false);
+  assert.equal(isPlusActive({ plan: 'plus' }), true);
+  assert.equal(isPlusActive({ plan: 'free' }), false);
+  assert.equal(isPlusActive({ plan: 'plus', expires_at: new Date(now - DAY).toISOString() }, now), false);
+  assert.equal(isPlusActive({ plan: 'plus', expires_at: new Date(now + DAY).toISOString() }, now), true);
+});
+
+// Mon 5 Oct 2026 noon is `now`.
+test('planner: spreads remaining pages evenly before the deadline', () => {
+  const task: Task = { ...book, target: 300, deadline: now + 14 * DAY };
+  const entries: Entry[] = [{ id: 'e', taskId: 't1', at: now - DAY, amount: 60, xp: 10 }]; // 240 left
+  const plan = suggestPlan(task, entries, { daysPerWeek: 3, horizonDays: 30, time: '19:00' }, now);
+  assert.ok(plan.length >= 5 && plan.length <= 7, `got ${plan.length}`); // Mon/Wed/Fri over two weeks, starting tomorrow
+  assert.ok(plan.every((p) => p.time === '19:00'));
+  const days = plan.map((p) => new Date(dayKeyToMsForTest(p.day)).getDay());
+  assert.ok(days.every((d) => [1, 3, 5].includes(d)));
+  assert.ok(plan.every((p) => p.day > '2026-10-05' && p.day <= dayKey(task.deadline!)));
+  const per = Number(plan[0].note.match(/\d+/)?.[0]);
+  assert.ok(per * plan.length >= 240); // covers everything that is left
+});
+
+function dayKeyToMsForTest(key: string) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d, 12).getTime();
+}
+
+test('planner: finished tasks get no plan; milestones map to sessions', () => {
+  assert.deepEqual(suggestPlan({ ...book, completedAt: now }, [], { daysPerWeek: 3, horizonDays: 30 }, now), []);
+  const ms: Task = {
+    ...book, progressType: 'milestones', target: 0, unit: 'steps',
+    milestones: [
+      { id: 'a', title: 'Grammar', done: true },
+      { id: 'b', title: 'Words', done: false },
+      { id: 'c', title: 'Textbook', done: false },
+    ],
+  };
+  const plan = suggestPlan(ms, [], { daysPerWeek: 7, horizonDays: 14 }, now);
+  assert.equal(plan.length, 2);
+  assert.equal(plan[0].note, 'Milestone: Words');
+  assert.equal(plan[1].note, 'Milestone: Textbook');
+});
+
+test('planner: sessions type plans only what is left; no deadline uses your pace', () => {
+  const gym: Task = { ...book, id: 'g', progressType: 'sessions', target: 12, unit: 'sessions' };
+  const logs: Entry[] = Array.from({ length: 10 }, (_, i) => ({ id: `g${i}`, taskId: 'g', at: now - (i + 1) * DAY, amount: 1, xp: 10 }));
+  const plan = suggestPlan(gym, logs, { daysPerWeek: 3, horizonDays: 30 }, now);
+  assert.equal(plan.length, 2); // 2 sessions left
+  assert.equal(plan[0].note, 'Session 11 of 12');
+  const read: Task = { ...book, target: 300 };
+  const pace: Entry[] = [{ id: 'p', taskId: 't1', at: now - 2 * DAY, amount: 20, xp: 10 }];
+  const plan2 = suggestPlan(read, pace, { daysPerWeek: 2, horizonDays: 14 }, now);
+  assert.equal(plan2[0].note, 'Aim for 20 pages');
+});
+
+test('planner: sanitizePlan drops bad dates, repeats and long notes', () => {
+  const raw = [
+    { day: '2026-10-06', time: '07:30', note: 'Chapter 4' },
+    { day: '2026-10-06', note: 'duplicate day' },
+    { day: '2026-10-05', note: 'today is not allowed' },
+    { day: '2027-12-01', note: 'too far ahead' },
+    { day: 'nope', note: 'bad' },
+    { day: '2026-10-08', time: '25:99', note: 'x'.repeat(500) },
+    null,
+    'text',
+  ];
+  const out = sanitizePlan(raw, now, 60);
+  assert.deepEqual(out.map((o) => o.day), ['2026-10-06', '2026-10-08']);
+  assert.equal(out[0].time, '07:30');
+  assert.equal(out[1].time, undefined);
+  assert.equal(out[1].note.length, 120);
+  assert.deepEqual(sanitizePlan('nope', now), []);
+  assert.ok(MAX_SUGGESTIONS >= 30);
 });
 
 console.log(`\n${passed} tests passed`);

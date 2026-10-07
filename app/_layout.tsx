@@ -8,10 +8,12 @@ import { useTheme } from '../src/theme';
 import { Celebrations } from '../src/components/Celebrations';
 import { useNotificationSync } from '../src/notifications';
 import { useSyncManager } from '../src/sync';
+import { useEntitlementSync } from '../src/plusState';
 
 function Background() {
   useNotificationSync();
   useSyncManager();
+  useEntitlementSync();
   return null;
 }
 
@@ -48,6 +50,8 @@ export default function RootLayout() {
             <Stack.Screen name="echo" />
             <Stack.Screen name="wardrobe" />
             <Stack.Screen name="rankings" />
+            <Stack.Screen name="plus" />
+            <Stack.Screen name="ai-plan" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="auth-callback" options={{ animation: 'fade' }} />
           </Stack>
           <Background />

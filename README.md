@@ -1,8 +1,25 @@
-# Lifepath v0.4
+# Lifepath v0.8
 
 Track everything you're working on, in folders, with progress that feels good to log.
 
 Works fully offline. Sign in with Google to back up and sync across your phone and the web.
+
+## New in v0.5 to v0.8
+
+- **v0.4b Photo proof:** take or choose a photo as proof. It is stored on your phone, uploaded to a private cloud bucket when you are signed in, and shown in the log's history on any device. Needs a rebuild (new native package) and `0002_proof_photos.sql`.
+- **v0.5 Echo Lite:** a companion you name yourself (You tab → Echo). Six attributes (Wisdom, Strength, Voice, Craft, Fortune, Spirit) grow from your logs; proven logs count in full, one-tap logs 40%. Six stages (Spark → Legend), a mood that follows your day (it only ever rests, never punishes), skin and hair choices, and a placeholder avatar drawn from shapes. The final art replaces `src/components/EchoAvatar.tsx` later.
+- **v0.6 Sparks shop:** Echo's wardrobe (Echo → Wardrobe): tops, hats, extras and scenes priced in Sparks, with try-on before buying and a few that unlock at higher stages. Your balance is your earned Sparks minus the price of what you own, so buying on two devices never double-spends.
+- **v0.7 Rankings:** global, country and city boards, this week or all time (weeks start Monday 00:00 UTC). Scores are computed on the server from synced logs **with proof**. Off by default; you choose a public display name, country and city. Needs `0003_rankings.sql`.
+- **v0.8 Plus and AI planner:** free accounts have 3 folders; Plus is unlimited. The AI planner (task → Plan with AI) turns a goal, deadline and your real pace into calendar sessions. If the AI server is not set up it falls back to an on-device smart planner. Plus status comes from a server table; development builds have a local test switch on the Plus screen. Payments are not built yet. Needs `0004_plus.sql`, and `supabase/functions/plan` for the AI part.
+
+### Setup for v0.4b to v0.8 (one time)
+
+1. **SQL:** in Supabase SQL Editor run, in order, `supabase/migrations/0002_proof_photos.sql`, `0003_rankings.sql`, `0004_plus.sql`.
+2. **App:** `git pull`, `npm install` (adds `expo-image-picker`; if npm complains about the version run `npx expo install expo-image-picker`), then rebuild once: `npx eas-cli@latest build --profile development --platform android`.
+3. **Give yourself Plus for the AI path** (optional): Authentication → Users → copy your user id, then run the `insert into public.entitlements ...` example at the bottom of `0004_plus.sql`.
+4. **AI planner server** (optional): deploy `supabase/functions/plan/index.ts` (Dashboard → Edge Functions → Deploy a new function, or `supabase functions deploy plan`) and add the secret `ANTHROPIC_API_KEY`. Without it the app uses the on-device smart planner.
+
+Known limits: deleting a task or folder leaves its proof photos in storage (deleting a single log removes its photo); friends boards, league promotion tiers and real payments are not built yet.
 
 ## New in v0.4: proof for your logs
 
@@ -123,12 +140,21 @@ app/                    screens (file-based routing with expo-router)
   new-folder.tsx        Create folder (template → customize)
   new-task.tsx          Create task
   plan-session.tsx      Plan a session
+  ai-plan.tsx           AI / smart planner (Plus)
+  echo.tsx, wardrobe.tsx  Echo companion and Sparks shop
+  rankings.tsx          Global, country, city and weekly boards
+  plus.tsx              Lifepath Plus
 src/
   store.ts              all app state and actions, saved on device
   notifications.ts      schedules local reminders from app data
   sync.ts               Google sign-in and cloud sync engine
+  photos.ts             proof photos: pick, upload, show
+  aiPlan.ts, plusState.ts  AI planner client, Plus status
+  rankingsApi.ts        leaderboard and public profile calls
+  lib/echo.ts, wardrobe.ts, evidence.ts, planner.ts, plus.ts, rankings.ts  pure rules (tested)
   lib/syncPlan.ts       pure merge rules for sync (tested)
-supabase/migrations/    database schema to run in Supabase
+supabase/migrations/    database schema to run in Supabase (0001 to 0004)
+supabase/functions/plan AI planner Edge Function
   theme.ts              colors, type scale, light/dark
   lib/                  pure logic: types, progress, XP & streaks, templates, dates
   components/           buttons, progress bars & rings, log sheet, celebrations
@@ -141,11 +167,13 @@ supabase/migrations/    database schema to run in Supabase
 | 0.1 | Folders, tasks, logging, XP, streaks, achievements, local storage |
 | 0.2 | Reminders, evening streak nudge, calendar view, planned sessions |
 | 0.3 | Google sign-in and cloud sync (Supabase) |
-| **0.4** (this) | Proof for logs (summary and link), bonus XP, Sparks held until proven, trust tiers |
-| 0.5 | **Echo Lite:** simple companion with six attributes that react to your folders |
+| 0.4 | Proof for logs (summary and link), bonus XP, Sparks held until proven, trust tiers |
+| 0.4b | Photo proof with private cloud storage |
+| 0.5 | **Echo Lite:** companion with six attributes, stages, naming, placeholder avatar |
 | 0.6 | Sparks shop and wardrobe (placeholder items) |
-| 0.7 | Rankings: friends, local, global, weekly leagues (verified XP only) |
-| 0.8 | Plus tier: unlimited folders, AI planner |
+| 0.7 | Rankings: global, country, city, weekly (proven XP only) |
+| **0.8** (this) | Plus tier (free folder limit), AI planner with on-device fallback |
+| later | Payments (App Store / Play), friends boards, AI proof check, auto-verified logs, Apple sign-in |
 | 1.0 | Full Echo with commissioned anime art and Rive animation, life stages, room |
 
-The Echo screen already has a placeholder on the **You** tab, and XP and Sparks are counted from day one, so nothing you log now is lost when the companion arrives.
+Echo's looks are placeholders on purpose: every attribute, stage, item and Spark you earn now carries over when the commissioned art arrives.

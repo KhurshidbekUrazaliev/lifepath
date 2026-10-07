@@ -9,6 +9,7 @@ import { daysLeftForProof, evidenceState } from '../../src/lib/evidence';
 import { Entry } from '../../src/lib/types';
 import { ProofBadge, ProofPhoto, ProofSheet } from '../../src/components/Evidence';
 import { removeProofPhoto } from '../../src/photos';
+import { usePlus } from '../../src/plusState';
 import { formatRelative, formatShortDate } from '../../src/lib/dates';
 import { cardShadow, radius, space, tint, type, useTheme } from '../../src/theme';
 import { Card, EmptyState, Field, IconButton, Muted, Screen, SectionTitle, TopBar } from '../../src/components/ui';
@@ -47,6 +48,7 @@ export default function TaskScreen() {
   const entries = useStore((s) => s.entries);
   const { deleteTask, completeTask, reopenTask, toggleMilestone, addMilestone, removeMilestone, addResource, removeResource, deleteEntry } =
     useStore.getState();
+  const plus = usePlus();
   const [logOpen, setLogOpen] = useState(false);
   const [newMs, setNewMs] = useState('');
   const [resTitle, setResTitle] = useState('');
@@ -162,6 +164,13 @@ export default function TaskScreen() {
             variant="soft"
             color={color}
             onPress={() => router.push({ pathname: '/plan-session', params: { taskId: task.id } })}
+          />
+          <BounceButton
+            label={plus ? 'Plan with AI' : 'Plan with AI (Plus)'}
+            icon="✨"
+            variant="soft"
+            color={color}
+            onPress={() => router.push({ pathname: '/ai-plan', params: { taskId: task.id } })}
           />
         </>
       ) : null}

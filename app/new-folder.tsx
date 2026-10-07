@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useStore } from '../src/store';
+import { usePlus } from '../src/plusState';
+import { FREE_FOLDER_LIMIT, canCreateFolder } from '../src/lib/plus';
+import { EmptyState } from '../src/components/ui';
 import { ProgressType } from '../src/lib/types';
 import { FolderTemplate, ICONS, PALETTE, PROGRESS_TYPES, TEMPLATES } from '../src/lib/templates';
 import { cardShadow, radius, space, tint, type, useTheme } from '../src/theme';
@@ -11,6 +14,8 @@ import { BounceButton, Squish } from '../src/components/BounceButton';
 export default function NewFolderScreen() {
   const t = useTheme();
   const createFolder = useStore((s) => s.createFolder);
+  const folderCount = useStore((s) => s.folders.length);
+  const plus = usePlus();
   const [tpl, setTpl] = useState<FolderTemplate | null>(null);
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('');
@@ -26,6 +31,22 @@ export default function NewFolderScreen() {
     setPtype(x.progressType);
     setUnit(x.unit);
   };
+
+  // Free accounts have a folder limit; existing folders are never touched.
+  if (!canCreateFolder(folderCount, plus)) {
+    return (
+      <Screen edges={['top', 'bottom']}>
+        <TopBar title="New folder" />
+        <EmptyState
+          icon="🗂️"
+          title={`You have ${FREE_FOLDER_LIMIT} folders`}
+          body="Free includes 3 folders. Plus has unlimited folders and the AI planner. You can also finish or delete a folder you no longer need."
+        >
+          <BounceButton label="See Plus" onPress={() => router.replace('/plus')} />
+        </EmptyState>
+      </Screen>
+    );
+  }
 
   // Step 1: choose a starting template
   if (!tpl) {
