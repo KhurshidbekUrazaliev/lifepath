@@ -5,6 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../../src/store';
 import { computeProgress, forecast, formatAmount, taskEntries } from '../../src/lib/progress';
+import { daysLeftForProof, evidenceState } from '../../src/lib/evidence';
+import { Entry } from '../../src/lib/types';
+import { ProofBadge, ProofSheet } from '../../src/components/Evidence';
 import { formatRelative, formatShortDate } from '../../src/lib/dates';
 import { cardShadow, radius, space, tint, type, useTheme } from '../../src/theme';
 import { Card, EmptyState, Field, IconButton, Muted, Screen, SectionTitle, TopBar } from '../../src/components/ui';
@@ -13,6 +16,26 @@ import { LogSheet } from '../../src/components/LogSheet';
 import { ReminderCard } from '../../src/components/ReminderCard';
 import { BounceButton, Squish } from '../../src/components/BounceButton';
 import { confirmAction, haptic } from '../../src/components/feedback';
+
+/** Shows whether a log has proof, still can get it, or let its Sparks lapse. */
+function ProofState({ entry, onAdd }: { entry: Entry; onAdd: () => void }) {
+  const t = useTheme();
+  const state = evidenceState(entry);
+  if (state === 'legacy') return null;
+  if (state === 'verified') return <ProofBadge icon="shield-checkmark" label="Proof added" color={t.success} bg={t.accentSoft} />;
+  if (state === 'expired') return <ProofBadge icon="time-outline" label="Sparks expired" color={t.textMuted} bg={t.surfaceAlt} />;
+  const left = daysLeftForProof(entry);
+  return (
+    <Squish onPress={onAdd} hapticKind="select" accessibilityLabel="Add proof">
+      <ProofBadge
+        icon="add-circle-outline"
+        label={`Add proof · ${left === 0 ? 'last day' : `${left}d left`}`}
+        color={t.accent}
+        bg={t.accentSoft}
+      />
+    </Squish>
+  );
+}
 
 export default function TaskScreen() {
   const t = useTheme();
@@ -28,6 +51,7 @@ export default function TaskScreen() {
   const [resTitle, setResTitle] = useState('');
   const [resUrl, setResUrl] = useState('');
   const [showAll, setShowAll] = useState(false);
+  const [proofFor, setProofFor] = useState<Entry | null>(null);
 
   if (!task || !folder) {
     return (
@@ -226,6 +250,19 @@ export default function TaskScreen() {
                   {e.amount > 0 ? `+${formatAmount(e.amount, task.unit, task.progressType)}` : e.note}
                 </Text>
                 {e.amount > 0 && e.note ? <Text style={[type.small, { color: t.textMuted }]}>{e.note}</Text> : null}
+                {e.evidence?.summary ? <Text style={[type.small, { color: t.textMuted, fontStyle: 'italic' }]}>"{e.evidence.summary}"</Text> : null}
+                {e.evidence?.url ? (
+                  <Text
+                    style={[type.small, { color: t.accent, fontWeight: '700' }]}
+                    numberOfLines={1}
+                    onPress={() => Linking.openURL(e.evidence!.url!)}
+                  >
+                    {e.evidence.url.replace(/^https?:\/\//, '')}
+                  </Text>
+                ) : null}
+                <View style={{ marginTop: 4 }}>
+                  <ProofState entry={e} onAdd={() => setProofFor(e)} />
+                </View>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={[type.small, { color: t.accent, fontWeight: '800' }]}>+{e.xp} XP</Text>
@@ -251,6 +288,7 @@ export default function TaskScreen() {
       ) : null}
 
       <LogSheet task={logOpen ? task : null} onClose={() => setLogOpen(false)} />
+      <ProofSheet entry={proofFor} color={color} onClose={() => setProofFor(null)} />
     </Screen>
   );
 }

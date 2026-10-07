@@ -6,6 +6,8 @@ import { Task } from '../lib/types';
 import { computeProgress, formatAmount } from '../lib/progress';
 import { quickAmounts } from '../lib/templates';
 import { xpForLog } from '../lib/gamify';
+import { EVIDENCE_WINDOW_DAYS, cleanEvidence, evidenceBonus } from '../lib/evidence';
+import { EvidenceFields } from './Evidence';
 import { radius, space, tint, type, useTheme } from '../theme';
 import { BounceButton, Squish } from './BounceButton';
 import { Chip, Field } from './ui';
@@ -23,12 +25,18 @@ export function LogSheet({ task, onClose }: { task: Task | null; onClose: () => 
 
   const [amount, setAmount] = useState(0);
   const [note, setNote] = useState('');
+  const [proofOpen, setProofOpen] = useState(false);
+  const [summary, setSummary] = useState('');
+  const [url, setUrl] = useState('');
 
   useEffect(() => {
     if (task) {
       const q = quickAmounts(task.progressType, task.target);
       setAmount(task.progressType === 'sessions' ? 1 : q[Math.min(1, q.length - 1)]);
       setNote('');
+      setProofOpen(false);
+      setSummary('');
+      setUrl('');
     }
     // Reset only when a different task is opened.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -40,8 +48,13 @@ export function LogSheet({ task, onClose }: { task: Task | null; onClose: () => 
   const quick = quickAmounts(live.progressType, live.target);
   const step = live.progressType === 'time' ? 5 : quick[0];
 
+  const proof = proofOpen ? { summary, url } : undefined;
+  const hasProof = !!cleanEvidence(proof);
+  const baseXp = xpForLog(live, amount, streak);
+  const shownXp = baseXp + (hasProof ? evidenceBonus(baseXp) : 0);
+
   const submit = () => {
-    const res = logProgress(live.id, amount, note);
+    const res = logProgress(live.id, amount, note, proof);
     if (res) {
       haptic('success');
       onClose();
@@ -135,13 +148,35 @@ export function LogSheet({ task, onClose }: { task: Task | null; onClose: () => 
                 multiline
               />
 
+              <Squish
+                hapticKind="select"
+                onPress={() => setProofOpen((v) => !v)}
+                style={[styles.proofToggle, { backgroundColor: proofOpen ? t.accentSoft : t.surface, borderColor: proofOpen ? t.accent : t.border }]}
+                accessibilityLabel="Add proof"
+              >
+                <Ionicons name={hasProof ? 'shield-checkmark' : 'shield-outline'} size={20} color={hasProof ? t.success : t.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[type.body, { color: t.text, fontWeight: '800' }]}>{hasProof ? 'Proof added' : 'Add proof'}</Text>
+                  <Text style={[type.small, { color: t.textMuted }]}>
+                    {hasProof ? 'Bonus XP now, and your Sparks are released' : 'Bonus XP, and your Sparks are released right away'}
+                  </Text>
+                </View>
+                <Ionicons name={proofOpen ? 'chevron-up' : 'chevron-down'} size={18} color={t.textMuted} />
+              </Squish>
+              {proofOpen ? <EvidenceFields summary={summary} url={url} onSummary={setSummary} onUrl={setUrl} /> : null}
+
               <BounceButton
-                label={`Log it  ·  +${xpForLog(live, amount, streak)} XP`}
+                label={`Log it  ·  +${shownXp} XP`}
                 color={color}
                 size="lg"
                 disabled={amount <= 0}
                 onPress={submit}
               />
+              {!hasProof ? (
+                <Text style={[type.small, { color: t.textMuted, textAlign: 'center', marginTop: -space.sm }]}>
+                  Skip proof and your Sparks wait up to {EVIDENCE_WINDOW_DAYS} days for it. XP counts right away.
+                </Text>
+              ) : null}
             </View>
           )}
         </View>
@@ -164,5 +199,6 @@ const styles = StyleSheet.create({
   big: { fontSize: 52, fontWeight: '900', letterSpacing: -1.5 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, justifyContent: 'center' },
   sessionBox: { alignItems: 'center', gap: 4, padding: space.xl, borderRadius: radius.lg },
+  proofToggle: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, borderRadius: radius.md, borderWidth: 1.5 },
   msRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, borderRadius: radius.md, borderWidth: 1.5 },
 });

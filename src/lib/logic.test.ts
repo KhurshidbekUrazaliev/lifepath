@@ -7,6 +7,9 @@ import { Entry, Folder, Plan, Profile, Task } from './types';
 import { daysLabel, monthGrid, parseTime } from './calendar';
 import { buildSchedule } from './schedule';
 import { fromRecordMap, planSync, RemoteRecord, stableStringify, toRecordMap } from './syncPlan';
+import {
+  cleanEvidence, daysLeftForProof, evidenceBonus, evidenceState, normalizeUrl, pendingSparks, sparksForAward, sparksGranted,
+} from './evidence';
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -247,6 +250,60 @@ test('sync: new device with example data merges with cloud data', () => {
   const out = fromRecordMap(plan.local, syncProfile);
   assert.deepEqual(out.folders.map((f) => f.id).sort(), ['cloudF', 'fa']);
   assert.ok(plan.push.some((r) => r.id === 'fa'));
+});
+
+// ---------- evidence (v0.4) ----------
+
+test('evidence: links are normalized, junk is rejected', () => {
+  assert.equal(normalizeUrl('https://example.com/a'), 'https://example.com/a');
+  assert.equal(normalizeUrl('  example.com/lesson '), 'https://example.com/lesson');
+  assert.equal(normalizeUrl('not a link'), undefined);
+  assert.equal(normalizeUrl('hello'), undefined);
+  assert.equal(normalizeUrl(''), undefined);
+});
+
+test('evidence: needs a real summary or a usable link', () => {
+  assert.equal(cleanEvidence({ summary: 'ok' }), undefined);
+  assert.equal(cleanEvidence({ summary: '   ' }), undefined);
+  assert.equal(cleanEvidence(undefined), undefined);
+  const a = cleanEvidence({ summary: 'Read chapter 3, the cab chase', url: 'nope' }, 5);
+  assert.deepEqual(a, { summary: 'Read chapter 3, the cab chase', url: undefined, at: 5 });
+  const b = cleanEvidence({ summary: 'short', url: 'books.example.com/p/12' }, 5);
+  assert.deepEqual(b, { summary: undefined, url: 'https://books.example.com/p/12', at: 5 });
+});
+
+test('evidence: bonus is 25% with a floor of 3', () => {
+  assert.equal(evidenceBonus(40), 10);
+  assert.equal(evidenceBonus(10), 3);
+  assert.equal(evidenceBonus(1), 3);
+});
+
+test('evidence: quick logs are pending for 7 days, then expire', () => {
+  const quick: Entry = { id: 'q', taskId: 't1', at: now, amount: 5, xp: 30, trust: 'quick' };
+  assert.equal(evidenceState(quick, now + DAY), 'pending');
+  assert.equal(evidenceState(quick, now + 7 * DAY), 'pending');
+  assert.equal(evidenceState(quick, now + 7 * DAY + 1), 'expired');
+  assert.equal(daysLeftForProof(quick, now + DAY), 5);
+  assert.equal(daysLeftForProof(quick, now + 8 * DAY), 0);
+  assert.equal(evidenceState({ ...quick, trust: 'evidence' }, now), 'verified');
+  assert.equal(evidenceState({ id: 'o', taskId: 't1', at: now, amount: 1, xp: 10 }, now), 'legacy');
+});
+
+test('evidence: sparks are withheld for quick logs, kept for old logs', () => {
+  const quick: Entry = { id: 'q', taskId: 't1', at: now, amount: 5, xp: 35, trust: 'quick' };
+  const proven: Entry = { ...quick, trust: 'evidence' };
+  const old: Entry = { id: 'o', taskId: 't1', at: now, amount: 5, xp: 35 };
+  assert.equal(sparksGranted(quick), 0);
+  assert.equal(sparksGranted(proven), 3);
+  assert.equal(sparksGranted(old), 3);
+  assert.equal(pendingSparks([quick, proven, old], now + DAY), 3);
+  assert.equal(pendingSparks([quick], now + 9 * DAY), 0); // expired Sparks are no longer pending
+});
+
+test('evidence: award pays Sparks for bonuses even on a quick log', () => {
+  assert.equal(sparksForAward('evidence', 35, 85), 8);
+  assert.equal(sparksForAward('quick', 35, 35), 0);
+  assert.equal(sparksForAward('quick', 35, 85), 5); // finishing a task (+50 XP) still pays 5 Sparks
 });
 
 console.log(`\n${passed} tests passed`);
