@@ -8,6 +8,7 @@ import { daysLabel, monthGrid, parseTime } from './calendar';
 import { buildSchedule } from './schedule';
 import { fromRecordMap, mergeProfiles, planSync, RemoteRecord, stableStringify, toRecordMap } from './syncPlan';
 import { canBuy, sparkBalance } from './wardrobe';
+import { cleanDisplayName, daysLeftInWeek, flag, rankMedal, weekEndMs, weekStartMs } from './rankings';
 import {
   ATTRIBUTES, archetypeFor, attrLevel, computeAttributes, echoLine, echoMood, stageFor, totalPoints,
 } from './echo';
@@ -400,6 +401,28 @@ test('wardrobe: purchases from two devices merge without double-spending', () =>
   const m = mergeProfiles(a, b);
   assert.deepEqual([...(m.owned ?? [])].sort(), ['hat-cap', 'top-hoodie']);
   assert.equal(sparkBalance(m), 50);
+});
+
+// ---------- Rankings (v0.7) ----------
+
+test('rankings: the week starts Monday 00:00 UTC for everyone', () => {
+  const wed = Date.UTC(2026, 9, 7, 13, 30); // Wed 7 Oct 2026
+  assert.equal(weekStartMs(wed), Date.UTC(2026, 9, 5)); // Mon 5 Oct
+  assert.equal(weekStartMs(Date.UTC(2026, 9, 5)), Date.UTC(2026, 9, 5)); // Monday itself
+  assert.equal(weekStartMs(Date.UTC(2026, 9, 11, 23, 59)), Date.UTC(2026, 9, 5)); // Sunday night
+  assert.equal(weekEndMs(wed), Date.UTC(2026, 9, 12));
+  assert.equal(daysLeftInWeek(wed), 5);
+});
+
+test('rankings: flags, names, medals', () => {
+  assert.equal(flag('KR'), '🇰🇷');
+  assert.equal(flag('us'), '🇺🇸');
+  assert.equal(flag(null), '🌍');
+  assert.equal(cleanDisplayName('   '), undefined);
+  assert.equal(cleanDisplayName('  Khurshid   B  '), 'Khurshid B');
+  assert.equal(cleanDisplayName('x'.repeat(40))?.length, 24);
+  assert.equal(rankMedal(1), '🥇');
+  assert.equal(rankMedal(4), '');
 });
 
 console.log(`\n${passed} tests passed`);

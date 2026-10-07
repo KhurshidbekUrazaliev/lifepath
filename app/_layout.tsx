@@ -47,6 +47,7 @@ export default function RootLayout() {
             <Stack.Screen name="plan-session" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="echo" />
             <Stack.Screen name="wardrobe" />
+            <Stack.Screen name="rankings" />
             <Stack.Screen name="auth-callback" options={{ animation: 'fade' }} />
           </Stack>
           <Background />
