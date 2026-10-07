@@ -6,7 +6,11 @@ import { daysBetween, dayKey } from './dates';
 import { Entry, Folder, Plan, Profile, Task } from './types';
 import { daysLabel, monthGrid, parseTime } from './calendar';
 import { buildSchedule } from './schedule';
-import { fromRecordMap, planSync, RemoteRecord, stableStringify, toRecordMap } from './syncPlan';
+import { fromRecordMap, mergeProfiles, planSync, RemoteRecord, stableStringify, toRecordMap } from './syncPlan';
+import { canBuy, sparkBalance } from './wardrobe';
+import {
+  ATTRIBUTES, archetypeFor, attrLevel, computeAttributes, echoLine, echoMood, stageFor, totalPoints,
+} from './echo';
 import {
   cleanEvidence, daysLeftForProof, evidenceBonus, evidenceState, normalizeUrl, pendingSparks, sparksForAward, sparksGranted,
 } from './evidence';
@@ -306,6 +310,96 @@ test('evidence: award pays Sparks for bonuses even on a quick log', () => {
   assert.equal(sparksForAward('evidence', 35, 85), 8);
   assert.equal(sparksForAward('quick', 35, 35), 0);
   assert.equal(sparksForAward('quick', 35, 85), 5); // finishing a task (+50 XP) still pays 5 Sparks
+});
+
+// ---------- Echo Lite (v0.5) ----------
+
+const gymFolder: Folder = { id: 'fg', name: 'Gym', icon: '💪', color: '#f00', templateId: 'gym', progressType: 'sessions', unit: 'sessions', createdAt: 0 };
+const bookFolder: Folder = { id: 'fb', name: 'Reading', icon: '📚', color: '#00f', templateId: 'reading', progressType: 'units', unit: 'pages', createdAt: 0 };
+const customFolder: Folder = { id: 'fc', name: 'Mine', icon: '✨', color: '#0f0', templateId: 'custom', progressType: 'units', unit: 'x', createdAt: 0 };
+const echoTasks: Task[] = [
+  { ...book, id: 'tg', folderId: 'fg' }, { ...book, id: 'tb', folderId: 'fb' }, { ...book, id: 'tc', folderId: 'fc' },
+];
+
+test('echo: effort goes to the folder\'s attribute; quick logs count 40%', () => {
+  const entries: Entry[] = [
+    { id: '1', taskId: 'tg', at: now, amount: 1, xp: 50, trust: 'evidence' },
+    { id: '2', taskId: 'tg', at: now, amount: 1, xp: 50, trust: 'quick' },
+    { id: '3', taskId: 'tb', at: now, amount: 5, xp: 30 }, // before v0.4: counts in full
+    { id: '4', taskId: 'gone', at: now, amount: 5, xp: 99, trust: 'evidence' }, // deleted task: ignored
+  ];
+  const p = computeAttributes(entries, echoTasks, [gymFolder, bookFolder, customFolder]);
+  assert.equal(p.strength, 70);
+  assert.equal(p.wisdom, 30);
+  assert.equal(p.voice, 0);
+  assert.equal(totalPoints(p), 100);
+});
+
+test('echo: custom folders feed all six attributes equally', () => {
+  const p = computeAttributes([{ id: '1', taskId: 'tc', at: now, amount: 1, xp: 60, trust: 'evidence' }], echoTasks, [customFolder]);
+  for (const a of ATTRIBUTES) assert.equal(p[a.id], 10);
+});
+
+test('echo: attribute levels and stages', () => {
+  assert.equal(attrLevel(0).level, 1);
+  assert.equal(attrLevel(25).level, 2);
+  assert.equal(attrLevel(99).level, 2);
+  assert.equal(attrLevel(100).level, 3);
+  assert.equal(stageFor(0).name, 'Spark');
+  assert.equal(stageFor(150).name, 'Sprout');
+  assert.equal(stageFor(149).toNext, 1);
+  assert.equal(stageFor(99999).name, 'Legend');
+  assert.equal(stageFor(99999).ratio, 1);
+});
+
+test('echo: archetype follows the strongest path, generalist when spread out', () => {
+  const none = { wisdom: 0, strength: 0, voice: 0, craft: 0, fortune: 0, spirit: 0 };
+  assert.equal(archetypeFor(none), 'Newcomer');
+  assert.equal(archetypeFor({ ...none, strength: 400 }), 'Warrior');
+  assert.equal(archetypeFor({ wisdom: 100, strength: 100, voice: 100, craft: 100, fortune: 100, spirit: 100 }), 'Wayfarer');
+});
+
+test('echo: mood is never negative, and the daily line is stable', () => {
+  assert.equal(echoMood(true, 0), 'radiant');
+  assert.equal(echoMood(false, 3), 'content');
+  assert.equal(echoMood(false, 0), 'resting');
+  assert.equal(echoLine('resting', '2026-10-07'), echoLine('resting', '2026-10-07'));
+});
+
+test('sync: echo naming survives profile merge', () => {
+  const base: Profile = { name: '', xp: 0, sparks: 0, streak: { current: 0, best: 0 }, freezes: 0, dailyGoalXp: 30, haptics: true, achievements: {}, nudge: { enabled: false, hour: 21, minute: 0 } };
+  const named = { ...base, echo: { name: 'Kai', skin: 1, hair: 2, bornAt: 5 } };
+  const m1 = mergeProfiles(base, named);
+  assert.equal(m1.echo?.name, 'Kai');
+  const m2 = mergeProfiles(named, base);
+  assert.equal(m2.echo?.name, 'Kai');
+});
+
+// ---------- Wardrobe (v0.6) ----------
+
+test('wardrobe: balance = earned Sparks minus the price of owned items', () => {
+  assert.equal(sparkBalance({ sparks: 100 }), 100);
+  assert.equal(sparkBalance({ sparks: 100, owned: ['top-hoodie'] }), 60);
+  assert.equal(sparkBalance({ sparks: 10, owned: ['top-kimono'] }), 0); // never negative
+});
+
+test('wardrobe: buying rules', () => {
+  const p = { sparks: 100, owned: ['hat-cap'] };
+  assert.deepEqual(canBuy(p, 'hat-cap', 0), { ok: false, reason: 'owned' });
+  assert.deepEqual(canBuy(p, 'top-tee', 0), { ok: false, reason: 'owned' }); // free items are always owned
+  assert.deepEqual(canBuy(p, 'top-kimono', 0), { ok: false, reason: 'poor' });
+  assert.deepEqual(canBuy({ sparks: 999 }, 'hat-crown', 1), { ok: false, reason: 'stage' });
+  assert.deepEqual(canBuy({ sparks: 999 }, 'hat-crown', 4), { ok: true });
+  assert.deepEqual(canBuy(p, 'nope', 0), { ok: false, reason: 'unknown' });
+});
+
+test('wardrobe: purchases from two devices merge without double-spending', () => {
+  const base: Profile = { name: '', xp: 0, sparks: 120, streak: { current: 0, best: 0 }, freezes: 0, dailyGoalXp: 30, haptics: true, achievements: {}, nudge: { enabled: false, hour: 21, minute: 0 } };
+  const a = { ...base, owned: ['top-hoodie'] }; // 40
+  const b = { ...base, owned: ['hat-cap'] }; // 30
+  const m = mergeProfiles(a, b);
+  assert.deepEqual([...(m.owned ?? [])].sort(), ['hat-cap', 'top-hoodie']);
+  assert.equal(sparkBalance(m), 50);
 });
 
 console.log(`\n${passed} tests passed`);

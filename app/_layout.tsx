@@ -45,6 +45,8 @@ export default function RootLayout() {
             <Stack.Screen name="new-folder" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="new-task" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="plan-session" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="echo" />
+            <Stack.Screen name="wardrobe" />
             <Stack.Screen name="auth-callback" options={{ animation: 'fade' }} />
           </Stack>
           <Background />
