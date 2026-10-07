@@ -3,6 +3,7 @@ import { StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useStore, useVisibleStreak } from '../../src/store';
 import { useEcho } from '../../src/echoState';
+import { usePlus } from '../../src/plusState';
 import { EchoAvatar } from '../../src/components/EchoAvatar';
 import { ACHIEVEMENTS, levelInfo } from '../../src/lib/gamify';
 import { EVIDENCE_WINDOW_DAYS, pendingSparks } from '../../src/lib/evidence';
@@ -45,6 +46,7 @@ export default function MeScreen() {
   const lvl = levelInfo(profile.xp);
   const waiting = pendingSparks(entries);
   const echo = useEcho();
+  const plus = usePlus();
 
   const stats = [
     { label: 'Total XP', value: profile.xp.toLocaleString(), icon: '⚡' },
@@ -77,6 +79,16 @@ export default function MeScreen() {
             <Text style={[type.tiny, { color: t.accent }]}>{echo.echo ? `${echo.archetype.toUpperCase()} · ${echo.stage.name.toUpperCase()}` : 'NEW'}</Text>
             <Text style={[type.heading, { color: t.text }]}>{echo.echo ? echo.echo.name : 'Meet your Echo'}</Text>
             <Muted>{echo.echo ? echo.line : 'A companion that grows from your real effort. Name it anything you like.'}</Muted>
+          </View>
+        </Card>
+      </Squish>
+
+      <Squish onPress={() => router.push('/plus')} hapticKind="select" accessibilityLabel="Open Lifepath Plus">
+        <Card style={styles.echo}>
+          <Text style={{ fontSize: 34 }}>{plus ? '🌟' : '✨'}</Text>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[type.heading, { color: t.text }]}>{plus ? 'Lifepath Plus' : 'Get Lifepath Plus'}</Text>
+            <Muted>{plus ? 'Unlimited folders and the AI planner are on.' : 'Unlimited folders and an AI planner.'}</Muted>
           </View>
         </Card>
       </Squish>
