@@ -19,14 +19,15 @@ export function normalizeUrl(raw?: string): string | undefined {
   return /^https?:\/\/[^/\s]+\.[^/\s]+/i.test(withScheme) ? withScheme : undefined;
 }
 
-/** Valid proof = a real summary (15+ characters) or a usable link. Returns the cleaned proof, or undefined. */
+/** Valid proof = a photo, a real summary (15+ characters), or a usable link. Returns the cleaned proof, or undefined. */
 export function cleanEvidence(input?: EvidenceInput, at: number = Date.now()): Evidence | undefined {
   if (!input) return undefined;
   const summary = (input.summary ?? '').trim();
   const url = normalizeUrl(input.url);
+  const photoUri = (input.photoUri ?? '').trim() || undefined;
   const goodSummary = summary.length >= MIN_SUMMARY_CHARS;
-  if (!goodSummary && !url) return undefined;
-  return { summary: goodSummary ? summary : undefined, url, at };
+  if (!goodSummary && !url && !photoUri) return undefined;
+  return { summary: goodSummary ? summary : undefined, url, photoUri, at };
 }
 
 /** Bonus XP for adding proof: +25% of the log's XP, at least 3. */

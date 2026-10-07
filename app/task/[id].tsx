@@ -7,7 +7,8 @@ import { useStore } from '../../src/store';
 import { computeProgress, forecast, formatAmount, taskEntries } from '../../src/lib/progress';
 import { daysLeftForProof, evidenceState } from '../../src/lib/evidence';
 import { Entry } from '../../src/lib/types';
-import { ProofBadge, ProofSheet } from '../../src/components/Evidence';
+import { ProofBadge, ProofPhoto, ProofSheet } from '../../src/components/Evidence';
+import { removeProofPhoto } from '../../src/photos';
 import { formatRelative, formatShortDate } from '../../src/lib/dates';
 import { cardShadow, radius, space, tint, type, useTheme } from '../../src/theme';
 import { Card, EmptyState, Field, IconButton, Muted, Screen, SectionTitle, TopBar } from '../../src/components/ui';
@@ -260,6 +261,7 @@ export default function TaskScreen() {
                     {e.evidence.url.replace(/^https?:\/\//, '')}
                   </Text>
                 ) : null}
+                {e.evidence?.photoUri || e.evidence?.photoPath ? <ProofPhoto evidence={e.evidence} /> : null}
                 <View style={{ marginTop: 4 }}>
                   <ProofState entry={e} onAdd={() => setProofFor(e)} />
                 </View>
@@ -270,7 +272,10 @@ export default function TaskScreen() {
               </View>
               <Squish
                 hapticKind="none"
-                onPress={() => confirmAction('Remove this log?', 'Its XP will be removed too.', 'Remove', () => deleteEntry(e.id))}
+                onPress={() => confirmAction('Remove this log?', 'Its XP will be removed too.', 'Remove', () => {
+                  deleteEntry(e.id);
+                  removeProofPhoto(e);
+                })}
                 accessibilityLabel="Remove log"
               >
                 <Ionicons name="ellipsis-vertical" size={16} color={t.textMuted} />

@@ -9,6 +9,7 @@ import { create } from 'zustand';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { initialProfile, useStore } from './store';
+import { uploadPendingPhotos } from './photos';
 import { fromRecordMap, planSync, PushRow, RemoteRecord, Snapshot, toRecordMap } from './lib/syncPlan';
 
 type SyncState = 'idle' | 'syncing' | 'error' | 'offline';
@@ -147,6 +148,7 @@ export async function syncNow(): Promise<void> {
       if (plan.push.length) await push(userId, plan.push);
       await AsyncStorage.setItem(metaKey(userId), JSON.stringify({ cursor: maxUpdated, snapshot: plan.snapshot }));
       useAuth.setState({ sync: 'idle', lastSyncedAt: Date.now(), error: undefined });
+      uploadPendingPhotos(userId).catch(() => {}); // photos upload in the background; their paths sync next round
     } catch (e: any) {
       const msg = String(e?.message ?? e);
       const offline = /network|fetch|timeout|offline/i.test(msg);

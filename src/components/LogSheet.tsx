@@ -28,6 +28,7 @@ export function LogSheet({ task, onClose }: { task: Task | null; onClose: () => 
   const [proofOpen, setProofOpen] = useState(false);
   const [summary, setSummary] = useState('');
   const [url, setUrl] = useState('');
+  const [photoUri, setPhotoUri] = useState<string | undefined>();
 
   useEffect(() => {
     if (task) {
@@ -37,6 +38,7 @@ export function LogSheet({ task, onClose }: { task: Task | null; onClose: () => 
       setProofOpen(false);
       setSummary('');
       setUrl('');
+      setPhotoUri(undefined);
     }
     // Reset only when a different task is opened.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -48,7 +50,7 @@ export function LogSheet({ task, onClose }: { task: Task | null; onClose: () => 
   const quick = quickAmounts(live.progressType, live.target);
   const step = live.progressType === 'time' ? 5 : quick[0];
 
-  const proof = proofOpen ? { summary, url } : undefined;
+  const proof = proofOpen ? { summary, url, photoUri } : undefined;
   const hasProof = !!cleanEvidence(proof);
   const baseXp = xpForLog(live, amount, streak);
   const shownXp = baseXp + (hasProof ? evidenceBonus(baseXp) : 0);
@@ -163,7 +165,7 @@ export function LogSheet({ task, onClose }: { task: Task | null; onClose: () => 
                 </View>
                 <Ionicons name={proofOpen ? 'chevron-up' : 'chevron-down'} size={18} color={t.textMuted} />
               </Squish>
-              {proofOpen ? <EvidenceFields summary={summary} url={url} onSummary={setSummary} onUrl={setUrl} /> : null}
+              {proofOpen ? <EvidenceFields summary={summary} url={url} photoUri={photoUri} onSummary={setSummary} onUrl={setUrl} onPhoto={setPhotoUri} /> : null}
 
               <BounceButton
                 label={`Log it  ·  +${shownXp} XP`}

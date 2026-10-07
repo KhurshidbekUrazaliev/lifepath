@@ -267,9 +267,11 @@ test('evidence: needs a real summary or a usable link', () => {
   assert.equal(cleanEvidence({ summary: '   ' }), undefined);
   assert.equal(cleanEvidence(undefined), undefined);
   const a = cleanEvidence({ summary: 'Read chapter 3, the cab chase', url: 'nope' }, 5);
-  assert.deepEqual(a, { summary: 'Read chapter 3, the cab chase', url: undefined, at: 5 });
+  assert.deepEqual(a, { summary: 'Read chapter 3, the cab chase', url: undefined, photoUri: undefined, at: 5 });
   const b = cleanEvidence({ summary: 'short', url: 'books.example.com/p/12' }, 5);
-  assert.deepEqual(b, { summary: undefined, url: 'https://books.example.com/p/12', at: 5 });
+  assert.deepEqual(b, { summary: undefined, url: 'https://books.example.com/p/12', photoUri: undefined, at: 5 });
+  assert.deepEqual(cleanEvidence({ photoUri: 'file:///x.jpg' }, 5), { summary: undefined, url: undefined, photoUri: 'file:///x.jpg', at: 5 });
+  assert.equal(cleanEvidence({ photoUri: '   ' }), undefined);
 });
 
 test('evidence: bonus is 25% with a floor of 3', () => {

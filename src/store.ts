@@ -85,6 +85,8 @@ interface State {
 
   logProgress: (taskId: string, amount: number, note?: string, evidence?: EvidenceInput) => LogResult | null;
   attachEvidence: (entryId: string, input: EvidenceInput) => AttachResult;
+  /** Remembers where an uploaded proof photo lives in cloud storage. */
+  setPhotoPath: (entryId: string, path: string) => void;
   deleteEntry: (entryId: string) => void;
   toggleMilestone: (taskId: string, milestoneId: string) => void;
   addMilestone: (taskId: string, title: string) => void;
@@ -330,6 +332,11 @@ export const useStore = create<State>()(
         });
         return { ok: true, bonus, sparks };
       },
+
+      setPhotoPath: (entryId, path) =>
+        set((s) => ({
+          entries: s.entries.map((e) => (e.id === entryId && e.evidence ? { ...e, evidence: { ...e.evidence, photoPath: path } } : e)),
+        })),
 
       deleteEntry: (entryId) =>
         set((s) => {
