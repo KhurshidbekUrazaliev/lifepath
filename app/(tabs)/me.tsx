@@ -81,6 +81,16 @@ export default function MeScreen() {
         </Card>
       </Squish>
 
+      <Squish onPress={() => router.push('/rankings')} hapticKind="select" accessibilityLabel="Open rankings">
+        <Card style={styles.echo}>
+          <Text style={{ fontSize: 34 }}>🏆</Text>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[type.heading, { color: t.text }]}>Rankings</Text>
+            <Muted>Global, local and weekly boards. Only logs with proof count.</Muted>
+          </View>
+        </Card>
+      </Squish>
+
       <Card style={{ gap: space.md }}>
         <Field label="Your name" placeholder="What should we call you?" value={profile.name} onChangeText={setName} />
         <View style={{ gap: 6 }}>
